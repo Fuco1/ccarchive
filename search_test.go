@@ -145,6 +145,8 @@ func TestFullTextScanFindsSessionByTranscriptBody(t *testing.T) {
 	if m.err != nil {
 		t.Fatal(m.err)
 	}
+	m, _ = press(t, m, "esc")
+	wantRows(t, m, uuidA, uuidB, uuidC)
 }
 
 func TestFullTextRgFindsSessionByTranscriptBody(t *testing.T) {
