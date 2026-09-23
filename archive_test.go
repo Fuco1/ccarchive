@@ -321,8 +321,9 @@ func TestTabTogglesBetweenActiveAndAllViewMarkingArchivedRows(t *testing.T) {
 }
 
 func TestDataDirIsXDGDataHomeElseLocalShare(t *testing.T) {
-	goos = "linux"
-	t.Cleanup(func() { goos = runtime.GOOS })
+	if runtime.GOOS == "windows" {
+		t.Skip("the ~/.local/share fallback is not the Windows rule")
+	}
 	t.Setenv("HOME", "/home/someone")
 	t.Setenv("XDG_DATA_HOME", "/xdg")
 	if got, _ := dataDir(); got != filepath.Join("/xdg", "ccarchive") {
@@ -340,8 +341,9 @@ func TestDataDirIsXDGDataHomeElseLocalShare(t *testing.T) {
 }
 
 func TestDataDirOnWindowsIsLocalAppDataElseErrorNamingIt(t *testing.T) {
-	goos = "windows"
-	t.Cleanup(func() { goos = runtime.GOOS })
+	if runtime.GOOS != "windows" {
+		t.Skip("the LOCALAPPDATA rule applies only on Windows")
+	}
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("LOCALAPPDATA", "/lad")
 	if got, err := dataDir(); err != nil || got != filepath.Join("/lad", "ccarchive") {

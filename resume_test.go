@@ -8,7 +8,7 @@ import (
 
 // Run as a child by the tests below: it exits 3 only when started in the
 // directory it was told to expect, so a dropped Dir shows as 4.
-func TestHelperChild(t *testing.T) {
+func TestHelperChildExits3OnlyInExpectedDir(t *testing.T) {
 	want := os.Getenv("CCARCHIVE_HELPER_DIR")
 	if want == "" {
 		t.Skip("run only as a child")
@@ -25,7 +25,7 @@ func TestHelperChild(t *testing.T) {
 func TestRunChildReturnsChildExitCodeFromGivenDir(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("CCARCHIVE_HELPER_DIR", dir)
-	code, err := runChild(dir, os.Args[0], "-test.run=^TestHelperChild$")
+	code, err := runChild(dir, os.Args[0], "-test.run=^TestHelperChildExits3OnlyInExpectedDir$")
 	if err != nil || code != 3 {
 		t.Fatalf("runChild = %d, %v; want 3, nil", code, err)
 	}
