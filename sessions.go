@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -52,6 +53,14 @@ func configDir() (string, error) {
 // which configDir's reading of CLAUDE_CONFIG_DIR does not.
 func dataDir() (string, error) {
 	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
+		return filepath.Join(d, "ccarchive"), nil
+	}
+	if runtime.GOOS == "windows" {
+		// An empty value would join to a path relative to the working directory.
+		d := os.Getenv("LOCALAPPDATA")
+		if d == "" {
+			return "", errors.New("LOCALAPPDATA is not set")
+		}
 		return filepath.Join(d, "ccarchive"), nil
 	}
 	home, err := os.UserHomeDir()

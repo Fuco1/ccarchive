@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -320,6 +321,9 @@ func TestTabTogglesBetweenActiveAndAllViewMarkingArchivedRows(t *testing.T) {
 }
 
 func TestDataDirIsXDGDataHomeElseLocalShare(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the ~/.local/share fallback is not the Windows rule")
+	}
 	t.Setenv("HOME", "/home/someone")
 	t.Setenv("XDG_DATA_HOME", "/xdg")
 	if got, _ := dataDir(); got != filepath.Join("/xdg", "ccarchive") {
@@ -333,6 +337,26 @@ func TestDataDirIsXDGDataHomeElseLocalShare(t *testing.T) {
 	os.Unsetenv("XDG_DATA_HOME")
 	if got, _ := dataDir(); got != want {
 		t.Errorf("unset: dataDir = %q", got)
+	}
+}
+
+func TestDataDirOnWindowsIsLocalAppDataElseErrorNamingIt(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("the LOCALAPPDATA rule applies only on Windows")
+	}
+	t.Setenv("XDG_DATA_HOME", "")
+	t.Setenv("LOCALAPPDATA", "/lad")
+	if got, err := dataDir(); err != nil || got != filepath.Join("/lad", "ccarchive") {
+		t.Errorf("set: dataDir = %q, %v", got, err)
+	}
+	t.Setenv("XDG_DATA_HOME", "/xdg")
+	if got, _ := dataDir(); got != filepath.Join("/xdg", "ccarchive") {
+		t.Errorf("XDG_DATA_HOME set: dataDir = %q", got)
+	}
+	t.Setenv("XDG_DATA_HOME", "")
+	os.Unsetenv("LOCALAPPDATA")
+	if _, err := dataDir(); err == nil || !strings.Contains(err.Error(), "LOCALAPPDATA") {
+		t.Errorf("unset: err = %v", err)
 	}
 }
 

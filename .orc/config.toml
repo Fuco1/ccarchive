@@ -17,7 +17,7 @@ target = "master"
 # named for what it runs; a paths key scopes one to part of the repo, and no paths key
 # is every path. Each command is its own sh -c, with $ORC_TARGET and $ORC_BASE set.
 [checks.test]
-commands = ["go vet ./...", "go test ./..."]
+commands = ["go vet ./...", "GOOS=windows go vet ./...", "go test ./..."]
 
 # Which profiles each role runs, in order. Roles are named for when they run: inner
 # repeatedly while the work is being written, handoff once before the branch is
