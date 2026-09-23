@@ -127,7 +127,8 @@ func TestHelpViewListsEveryBoundKey(t *testing.T) {
 			t.Errorf("help view lacks %q:\n%s", k, view)
 		}
 	}
-	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`} {
+	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`,
+		`\bd\s+move to trash`, `\bT\s+trash view`, `\bu\s+in trash, restore`, `\bX\s+in trash, purge now`} {
 		if !regexp.MustCompile(re).MatchString(view) {
 			t.Errorf("help view lacks %s:\n%s", re, view)
 		}
@@ -146,7 +147,9 @@ func TestRowShowsTitleCwdAndAge(t *testing.T) {
 
 // The list's defaults also page on b, u, f and d without listing them in help.
 func TestUnlistedDefaultPageKeysAreUnbound(t *testing.T) {
-	m, _ := press(t, sized(make([]Session, 50)...), "l")
+	// d trashes the selected session, so the stores are real directories.
+	sized, _ := newModel(t.TempDir(), t.TempDir(), make([]Session, 50)).Update(sizeMsg)
+	m, _ := press(t, sized.(model), "l")
 	for _, k := range []string{"b", "u", "f", "d"} {
 		m, _ = press(t, m, k)
 		if got := m.list.Paginator.Page; got != 1 {
