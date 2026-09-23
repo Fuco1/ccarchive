@@ -20,11 +20,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	sessions, err := listSessions(config)
+	data, err := dataDir()
 	if err != nil {
 		return err
 	}
-	final, err := tea.NewProgram(newModel(sessions), tea.WithAltScreen()).Run()
+	sessions, err := listSessions(config, data)
+	if err != nil {
+		return err
+	}
+	final, err := tea.NewProgram(newModel(config, data, sessions), tea.WithAltScreen()).Run()
 	if err != nil {
 		return err
 	}
