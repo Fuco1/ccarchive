@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -10,8 +11,10 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var sizeMsg = tea.WindowSizeMsg{Width: 200, Height: 40}
+
 func sized(sessions ...Session) model {
-	m, _ := newModel(sessions).Update(tea.WindowSizeMsg{Width: 200, Height: 40})
+	m, _ := newModel("", "", sessions).Update(sizeMsg)
 	return m.(model)
 }
 
@@ -25,6 +28,8 @@ func press(t *testing.T, m model, k string) (model, tea.Cmd) {
 		msg = tea.KeyMsg{Type: tea.KeyUp}
 	case "down":
 		msg = tea.KeyMsg{Type: tea.KeyDown}
+	case "tab":
+		msg = tea.KeyMsg{Type: tea.KeyTab}
 	default:
 		msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 	}
@@ -116,6 +121,11 @@ func TestHelpViewListsEveryBoundKey(t *testing.T) {
 	for _, k := range []string{"↑/k", "↓/j", "←/h/pgup", "→/l/pgdn", "g/home", "G/end", "enter", "q", "ctrl+c", "?"} {
 		if !strings.Contains(view, k) {
 			t.Errorf("help view lacks %q:\n%s", k, view)
+		}
+	}
+	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`} {
+		if !regexp.MustCompile(re).MatchString(view) {
+			t.Errorf("help view lacks %s:\n%s", re, view)
 		}
 	}
 }
