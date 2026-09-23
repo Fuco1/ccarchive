@@ -41,6 +41,7 @@ func run() error {
 	if t == nil {
 		return nil
 	}
-	// Run has restored the terminal by now.
+	// Only after Run returns: before that the terminal is in raw mode on the
+	// alternate screen, and Claude would inherit it that way.
 	return resume(*t)
 }
