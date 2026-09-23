@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -48,10 +49,21 @@ func configDir() (string, error) {
 	return filepath.Join(home, ".claude"), nil
 }
 
+// A variable so a test on any host can take the Windows branch of dataDir.
+var goos = runtime.GOOS
+
 // dataDir follows the XDG rule that an empty XDG_DATA_HOME counts as unset,
 // which configDir's reading of CLAUDE_CONFIG_DIR does not.
 func dataDir() (string, error) {
 	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
+		return filepath.Join(d, "ccarchive"), nil
+	}
+	if goos == "windows" {
+		// An empty value would join to a path relative to the working directory.
+		d := os.Getenv("LOCALAPPDATA")
+		if d == "" {
+			return "", errors.New("LOCALAPPDATA is not set")
+		}
 		return filepath.Join(d, "ccarchive"), nil
 	}
 	home, err := os.UserHomeDir()
