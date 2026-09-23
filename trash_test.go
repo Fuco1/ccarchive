@@ -17,7 +17,8 @@ const (
 	uuidE = "55555555-5555-4555-8555-555555555555"
 )
 
-// listSessions fails without <config>/projects.
+// projects/ is created because listSessions treats its absence as a broken
+// config rather than an empty one.
 func emptyStore(t *testing.T) store {
 	t.Helper()
 	st := store{cfg: t.TempDir(), data: t.TempDir()}

@@ -276,7 +276,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.refresh()
 			return m, nil
 		case key.Matches(msg, trashView) && !m.trash:
-			// Full-text matches were computed over the view being left.
+			// The query is cleared because its full-text matches were computed over
+			// the view being left.
 			m.input.Reset()
 			m.trash = true
 			m.list.Title = "Trash"

@@ -65,7 +65,8 @@ func activeRoot(config string) string { return filepath.Join(config, "projects")
 func archiveRoot(data string) string  { return filepath.Join(data, "archive") }
 func trashRoot(data string) string    { return filepath.Join(data, "trash") }
 
-// The archive and the trash do not exist until a session is first moved there.
+// A missing archive or trash is an empty store rather than an error: neither
+// exists until a session is first moved there, and a new install has moved none.
 func listSessions(config, data string) ([]Session, error) {
 	out, err := scanSessions(activeRoot(config), false)
 	if err != nil {
