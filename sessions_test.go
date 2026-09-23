@@ -162,3 +162,10 @@ func TestConfigDirHonoursClaudeConfigDirEvenWhenEmpty(t *testing.T) {
 		t.Errorf("unset: configDir = %q", got)
 	}
 }
+
+func TestPromptHoldsEveryTextBlockOfTheFirstUserMessage(t *testing.T) {
+	s := parseTranscript(t, `{"type":"user","message":{"content":[{"type":"text","text":"intro"},{"type":"image"},{"type":"text","text":"needle"}]}}`)
+	if s.Title != "intro" || !matchesFilter(s, "needle") {
+		t.Fatalf("title %q, prompt %q", s.Title, s.Prompt)
+	}
+}

@@ -21,7 +21,7 @@ type Session struct {
 	ModTime  time.Time
 	Title    string
 	Cwd      string
-	Prompt   string // first user message, which search matches on
+	Prompt   string
 	Archived bool
 }
 
@@ -182,14 +182,15 @@ func contentText(raw json.RawMessage) string {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	}
+	var texts []string
 	if json.Unmarshal(raw, &items) == nil {
 		for _, it := range items {
 			if it.Type == "text" && strings.TrimSpace(it.Text) != "" {
-				return it.Text
+				texts = append(texts, it.Text)
 			}
 		}
 	}
-	return ""
+	return strings.Join(texts, "\n")
 }
 
 func firstLine(s string) string {
