@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -41,6 +44,9 @@ var (
 	resumeKey  = key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "resume"))
 	archiveKey = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "archive/unarchive"))
 	viewKey    = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "active/all"))
+	searchKey  = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search"))
+	// Help only: while the query has focus, updateSearch reads keys itself.
+	fullTextKey = key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("ctrl+f", "in search, toggle full-text"))
 )
 
 // keyMap replaces the list's defaults, whose help omits keys they bind (b, u,
@@ -61,6 +67,16 @@ type model struct {
 	sessions     []Session
 	showAll      bool
 	err          error
+
+	input     textinput.Model
+	searching bool // the query has focus
+	fullText  bool
+	rg        string // empty when rg is not on PATH
+	// The UUIDs the last full-text search printed; nil until one has run.
+	matches map[string]bool
+	// Tags full-text runs so a result that arrives after the query moved on
+	// is dropped.
+	seq int
 	// The exec has to wait until Run has restored the terminal, so Update
 	// only records its target here.
 	resume *resumeTarget
@@ -77,21 +93,35 @@ func newModel(config, data string, sessions []Session) model {
 	l.Title = "Claude Code sessions"
 	l.KeyMap = keyMap()
 	l.SetFilteringEnabled(false)
-	l.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{resumeKey, archiveKey, viewKey} }
+	l.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{resumeKey, archiveKey, viewKey, searchKey} }
 	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{resumeKey, archiveKey, viewKey, l.KeyMap.ForceQuit}
+		return []key.Binding{resumeKey, archiveKey, viewKey, searchKey, fullTextKey, l.KeyMap.ForceQuit}
 	}
-	m := model{list: l, config: config, data: data, sessions: sessions}
+	rg, _ := exec.LookPath("rg")
+	m := model{list: l, config: config, data: data, sessions: sessions, input: textinput.New(), rg: rg}
 	m.refresh()
 	return m
 }
 
-func (m *model) refresh() {
-	var items []list.Item
+func (m model) viewSessions() []Session {
+	var out []Session
 	for _, s := range m.sessions {
 		if m.showAll || !s.Archived {
-			items = append(items, item{s})
+			out = append(out, s)
 		}
+	}
+	return out
+}
+
+func (m *model) refresh() {
+	q := strings.ToLower(m.input.Value())
+	var items []list.Item
+	for _, s := range m.viewSessions() {
+		if m.fullText && m.matches != nil && !m.matches[s.UUID] ||
+			!m.fullText && !matchesFilter(s, q) {
+			continue
+		}
+		items = append(items, item{s})
 	}
 	idx := m.list.Index()
 	m.list.SetItems(items)
@@ -114,14 +144,96 @@ func (m *model) setArchived(s Session, archived bool) error {
 
 func (m model) Init() tea.Cmd { return nil }
 
+func (m model) filtered() bool { return m.input.Value() != "" || m.matches != nil }
+
+func (m *model) resetSearch(fullText bool) {
+	m.seq++
+	m.fullText = fullText
+	m.matches = nil
+	m.refresh()
+}
+
+type fullTextMsg struct {
+	seq   int
+	paths []string
+	err   error
+}
+
+func (m model) runFullText() tea.Cmd {
+	seq, rg, q := m.seq, m.rg, m.input.Value()
+	var paths []string
+	for _, s := range m.viewSessions() {
+		paths = append(paths, s.Path)
+	}
+	return func() tea.Msg {
+		r := fullTextMsg{seq: seq}
+		if rg != "" {
+			r.paths, r.err = rgSearch(rg, q, paths)
+		} else {
+			r.paths, r.err = scanSearch(q, paths)
+		}
+		return r
+	}
+}
+
+func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.searching = false
+		m.input.Blur()
+		m.input.Reset()
+		m.resetSearch(m.fullText)
+		return m, nil
+	case tea.KeyCtrlF:
+		m.resetSearch(!m.fullText)
+		return m, nil
+	case tea.KeyEnter:
+		m.searching = false
+		m.input.Blur()
+		if m.fullText {
+			m.seq++
+			return m, m.runFullText()
+		}
+		return m, nil
+	case tea.KeyCtrlC:
+		return m, tea.Quit
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	m.refresh()
+	return m, cmd
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.list.SetSize(msg.Width, msg.Height-1)
+		// One line for the search prompt and one for an error.
+		m.list.SetSize(msg.Width, msg.Height-2)
+	case fullTextMsg:
+		if msg.seq != m.seq {
+			return m, nil
+		}
+		m.matches = map[string]bool{}
+		for _, p := range msg.paths {
+			m.matches[strings.TrimSuffix(filepath.Base(p), ".jsonl")] = true
+		}
+		m.err = msg.err
+		m.refresh()
+		return m, nil
 	case tea.KeyMsg:
 		m.err = nil
+		if m.searching {
+			return m.updateSearch(msg)
+		}
 		it, selected := m.list.SelectedItem().(item)
 		switch {
+		case key.Matches(msg, searchKey):
+			m.searching = true
+			return m, m.input.Focus()
+		case msg.Type == tea.KeyEsc && m.filtered():
+			m.input.Reset()
+			m.resetSearch(m.fullText)
+			return m, nil
 		case key.Matches(msg, viewKey):
 			m.showAll = !m.showAll
 			m.refresh()
@@ -150,6 +262,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	v := m.list.View()
+	if m.searching || m.filtered() {
+		in := m.input
+		switch {
+		case !m.fullText:
+			in.Prompt = "filter: "
+		case m.rg != "":
+			in.Prompt = "full-text (rg): "
+		default:
+			in.Prompt = "full-text (scan): "
+		}
+		v += "\n" + in.View()
+	}
 	if m.err != nil {
 		v += "\nerror: " + m.err.Error()
 	}
