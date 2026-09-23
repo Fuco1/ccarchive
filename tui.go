@@ -12,7 +12,7 @@ import (
 )
 
 func (s Session) FilterValue() string { return s.Title }
-func (s Session) Description() string  { return s.Cwd + "  " + age(time.Since(s.ModTime)) }
+func (s Session) Description() string { return s.Cwd + "  " + age(time.Since(s.ModTime)) }
 
 // Title is a field on Session, so the list's DefaultItem interface is met
 // through this wrapper.
