@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -191,5 +192,24 @@ func TestFullTextQueryIsSearchedLiterally(t *testing.T) {
 				wantRows(t, fullText(t, engine(t, m), q), uuidA)
 			})
 		}
+	}
+}
+
+// rg points at nothing, so only a search that never starts it succeeds.
+func TestRgSearchScansWhenCommandLineWouldExceedWindowsLimit(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "no-rg")
+	var paths []string
+	for i := 0; len(strings.Join(paths, " ")) <= maxCmdLine; i++ {
+		p := filepath.Join(dir, fmt.Sprintf("%03d-%s.jsonl", i, strings.Repeat("x", 200)))
+		write(t, p, needle+"\n", time.Now())
+		paths = append(paths, p)
+	}
+	got, err := rgSearch(missing, needle, paths)
+	if err != nil || len(got) != len(paths) {
+		t.Fatalf("rgSearch = %d paths, %v; want %d, nil", len(got), err, len(paths))
+	}
+	if _, err := rgSearch(missing, needle, paths[:1]); err == nil {
+		t.Fatal("a short command line did not start rg")
 	}
 }

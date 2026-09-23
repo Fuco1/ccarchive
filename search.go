@@ -19,16 +19,22 @@ func matchesFilter(s Session, lowerQuery string) bool {
 	return false
 }
 
+// CreateProcess caps a Windows command line at this many UTF-16 units, far
+// below ARG_MAX elsewhere, so one bound serves every platform.
+const maxCmdLine = 32767
+
 // rg exits 1 when nothing matched, and 2 when some file could not be read, in
-// which case what it printed still matched.
-// ponytail: every path is one argv entry, so a view past ARG_MAX (~2 MiB on
-// Linux, 32 KiB on Windows) fails; batch the paths if that is ever reached.
+// which case what it printed still matched. A command line past maxCmdLine
+// would not start, so that search is scanned in process instead.
 func rgSearch(rg, query string, paths []string) ([]string, error) {
 	// rg given no paths searches its working directory.
 	if len(paths) == 0 {
 		return nil, nil
 	}
 	args := append([]string{"--files-with-matches", "--fixed-strings", "--ignore-case", "--", query}, paths...)
+	if cmdLineLen(rg, query, args) > maxCmdLine {
+		return scanSearch(query, paths)
+	}
 	cmd := exec.Command(rg, args...)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -52,6 +58,17 @@ func rgSearch(rg, query string, paths []string) ([]string, error) {
 		return nil, err
 	}
 	return printed, nil
+}
+
+// An upper bound on syscall.EscapeArg's output: an argument gains at most a
+// separator and two quotes, and only the query can hold quotes, each escape
+// at most doubling it. A UTF-8 byte count is never below its UTF-16 length.
+func cmdLineLen(rg, query string, args []string) int {
+	n := len(rg) + 3 + len(query)
+	for _, a := range args {
+		n += len(a) + 3
+	}
+	return n
 }
 
 // An unreadable file is reported and skipped rather than ending the scan, to
