@@ -1,0 +1,50 @@
+# orc, this repo's own configuration.
+#
+# It describes the repo and not a workstation: what must pass for code here, which
+# branch work is cut from, what every review of a node here judges. Where this machine
+# keeps the checkout, how many slots it runs and which agent CLI implements each role
+# are the home's own config.toml.
+#
+# Every key below is commented out but the branch, which orc read off this checkout.
+# Uncomment what this repo means, and delete the rest.
+
+[repo]
+# The branch a node's work is cut from, rebased onto and merged into, unless the node
+# or an ancestor of it names another.
+target = "master"
+
+# What must pass for code in this repo. A profile carries the commands it runs and is
+# named for what it runs; a paths key scopes one to part of the repo, and no paths key
+# is every path. Each command is its own sh -c, with $ORC_TARGET and $ORC_BASE set.
+[checks.test]
+commands = ["go vet ./...", "go test ./..."]
+
+# Which profiles each role runs, in order. Roles are named for when they run: inner
+# repeatedly while the work is being written, handoff once before the branch is
+# submitted, and merge on the merged tree before it lands. merge may run strictly more
+# than handoff.
+[roles]
+inner   = ["test"]
+handoff = ["test"]
+merge   = ["test"]
+
+# The criteria every agent review of a node in this repo judges beside the node's own,
+# for the properties no node's acceptance criteria carry. Uncommenting one puts it in
+# front of every review here, which is a deliberate act.
+# [review]
+# criteria = [
+#   "Every comment the change adds says why and not what: a constraint from outside the file, an alternative that fails, or a pointer to where the reasoning lives, in five lines or fewer.",
+#   "Nothing the change writes describes what used to be true. A deleted rule is deleted, not annotated.",
+#   "Things that change together are declared together: a value and its default, a parser and what it parses, a rule and its check live in one place, and the change spreads none of them across two.",
+#   "The change adds no helper, type or pattern the repo already has one of.",
+#   "No abstraction ahead of its second use: no interface with one implementation, no parameter with one value, no configuration for a value that never changes.",
+#   "The change adds no import or call across a boundary the repo's own layout documentation draws.",
+#   "Every test the change adds is named for the property it asserts and would fail if that property broke.",
+#   "The change prefers the operation that can only fail: it refuses an unknown value rather than remapping it, and errors on a bound rather than truncating.",
+#   "A document that describes behaviour the change alters says what is true now.",
+# ]
+
+# The changed-line count at which the merge queue files a quality sweep over the range
+# merged since the last one.
+# [sweep]
+# lines = 3000
