@@ -146,8 +146,8 @@ func (m *model) refresh() {
 	m.list.Select(max(0, min(idx, len(items)-1)))
 }
 
-// record replaces s with moved, which the move functions return as s when
-// nothing moved, and returns err.
+// record keeps moved even when err is set: restore can move the session and
+// then fail to remove its sidecar, and the model must follow where it went.
 func (m *model) record(s, moved Session, err error) error {
 	for i := range m.sessions {
 		if m.sessions[i].Path == s.Path {
