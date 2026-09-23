@@ -7,7 +7,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"syscall"
 )
 
 // rename is os.Rename; tests replace it to make one move of a pair fail.
@@ -85,7 +84,7 @@ func isLive(config, uuid string) (bool, error) {
 		if json.Unmarshal(b, &rec) != nil || rec.SessionID != uuid {
 			continue
 		}
-		if err := syscall.Kill(rec.PID, 0); err == nil || errors.Is(err, syscall.EPERM) {
+		if pidRunning(rec.PID) {
 			return true, nil
 		}
 	}
