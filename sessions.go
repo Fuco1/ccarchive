@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -20,6 +22,8 @@ type Session struct {
 	ModTime time.Time
 	Title   string
 	Cwd     string
+	// Archived sessions live under <data>/archive instead of <config>/projects.
+	Archived bool
 }
 
 // A project directory also holds files like <uuid>.orphaned-<n>-<hex>.jsonl;
@@ -38,8 +42,44 @@ func configDir() (string, error) {
 	return filepath.Join(home, ".claude"), nil
 }
 
-func listSessions(config string) ([]Session, error) {
-	projects := filepath.Join(config, "projects")
+// dataDir follows the XDG rule that an empty XDG_DATA_HOME counts as unset,
+// which configDir's reading of CLAUDE_CONFIG_DIR does not.
+func dataDir() (string, error) {
+	if d := os.Getenv("XDG_DATA_HOME"); d != "" {
+		return filepath.Join(d, "ccarchive"), nil
+	}
+	if runtime.GOOS == "windows" {
+		if d := os.Getenv("LOCALAPPDATA"); d != "" {
+			return filepath.Join(d, "ccarchive"), nil
+		}
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "share", "ccarchive"), nil
+}
+
+func activeRoot(config string) string { return filepath.Join(config, "projects") }
+func archiveRoot(data string) string  { return filepath.Join(data, "archive") }
+
+// listSessions lists active and archived sessions together, newest first. The
+// archive does not exist until the first session is archived.
+func listSessions(config, data string) ([]Session, error) {
+	out, err := scanSessions(activeRoot(config), false)
+	if err != nil {
+		return nil, err
+	}
+	archived, err := scanSessions(archiveRoot(data), true)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	out = append(out, archived...)
+	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
+	return out, nil
+}
+
+func scanSessions(projects string, archived bool) ([]Session, error) {
 	dirs, err := os.ReadDir(projects)
 	if err != nil {
 		return nil, err
@@ -62,10 +102,11 @@ func listSessions(config string) ([]Session, error) {
 				return nil, err
 			}
 			s := Session{
-				UUID:    strings.TrimSuffix(f.Name(), ".jsonl"),
-				Project: d.Name(),
-				Path:    filepath.Join(projects, d.Name(), f.Name()),
-				ModTime: info.ModTime(),
+				UUID:     strings.TrimSuffix(f.Name(), ".jsonl"),
+				Project:  d.Name(),
+				Path:     filepath.Join(projects, d.Name(), f.Name()),
+				ModTime:  info.ModTime(),
+				Archived: archived,
 			}
 			if err := s.parse(); err != nil {
 				return nil, err
@@ -73,7 +114,6 @@ func listSessions(config string) ([]Session, error) {
 			out = append(out, s)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
 	return out, nil
 }
 

@@ -49,7 +49,7 @@ func TestListSessionsListsOnlyCanonicalUUIDFilesNewestFirst(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := listSessions(cfg)
+	got, err := listSessions(cfg, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,7 +11,7 @@ import (
 )
 
 func sized(sessions ...Session) model {
-	m, _ := newModel(sessions).Update(tea.WindowSizeMsg{Width: 200, Height: 40})
+	m, _ := newModel("", "", sessions).Update(tea.WindowSizeMsg{Width: 200, Height: 40})
 	return m.(model)
 }
 
