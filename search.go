@@ -19,8 +19,8 @@ func matchesFilter(s Session, lowerQuery string) bool {
 	return false
 }
 
-// rgSearch returns the paths rg printed. rg exits 1 when nothing matched, and 2
-// when some file could not be read, in which case what it printed still matched.
+// rg exits 1 when nothing matched, and 2 when some file could not be read, in
+// which case what it printed still matched.
 // ponytail: every path is one argv entry, so a view past ARG_MAX (~2 MiB on
 // Linux, 32 KiB on Windows) fails; batch the paths if that is ever reached.
 func rgSearch(rg, query string, paths []string) ([]string, error) {
@@ -54,8 +54,8 @@ func rgSearch(rg, query string, paths []string) ([]string, error) {
 	return printed, nil
 }
 
-// scanSearch is rgSearch without rg. A file it cannot read is reported and
-// skipped, as rg does.
+// An unreadable file is reported and skipped rather than ending the scan, to
+// behave as rg's exit status 2 does.
 func scanSearch(query string, paths []string) ([]string, error) {
 	q := bytes.ToLower([]byte(query))
 	var out []string

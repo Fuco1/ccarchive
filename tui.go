@@ -69,10 +69,10 @@ type model struct {
 	err          error
 
 	input     textinput.Model
-	searching bool // the query has focus
+	searching bool
 	fullText  bool
-	rg        string // empty when rg is not on PATH
-	// The UUIDs the last full-text search printed; nil until one has run.
+	rg        string
+	// nil rather than empty so that before any full-text run every row shows.
 	matches map[string]bool
 	// Tags full-text runs so a result that arrives after the query moved on
 	// is dropped.

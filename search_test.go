@@ -50,7 +50,6 @@ func TestFilterMatchesTitleCwdOrPromptCaseInsensitivelyAndEscRestores(t *testing
 		t.Fatalf("prompt not shown:\n%s", m.View())
 	}
 
-	// Enter keeps the filter, and keys act on the rows again; Esc then clears it.
 	m, _ = press(t, m, "enter")
 	m, _ = press(t, m, "j")
 	wantRows(t, m, uuidA)
@@ -81,15 +80,15 @@ func TestCtrlFTogglesFullTextAndPromptNamesTheEngine(t *testing.T) {
 	if !strings.Contains(m.View(), "full-text (scan): ") {
 		t.Fatalf("prompt does not say scan:\n%s", m.View())
 	}
-	// Full-text runs on Enter, not per keystroke.
+	// Typing alone must not spawn a process per character.
 	m, _ = press(t, m, "zzz")
 	wantRows(t, m, uuidA)
 }
 
 const needle = "Quux-Only-In-Body"
 
-// transcripts writes one session per body. Every title, cwd and prompt differs
-// from the bodies, so only a full-text search can find them.
+// Every title, cwd and prompt differs from the bodies, so only a full-text
+// search can find them.
 func transcripts(t *testing.T, bodies ...string) []Session {
 	dir := filepath.Join(t.TempDir(), "-proj")
 	var out []Session
@@ -132,9 +131,9 @@ func bodyFixture(t *testing.T) model {
 		`{"type":"user"}`+"\n",
 		`{"type":"user"}`+"\n",
 	)
-	// A session's own directory is not its transcript.
+	// Planted where the search must not look: a session's own directory, and a
+	// transcript outside the view.
 	write(t, filepath.Join(filepath.Dir(s[1].Path), uuidB, "sub.jsonl"), needle, time.Now())
-	// Nor is a transcript outside the view.
 	write(t, filepath.Join(filepath.Dir(s[1].Path), "44444444-4444-4444-8444-444444444444.jsonl"), needle, time.Now())
 	return sized(s...)
 }
