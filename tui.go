@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,7 +16,16 @@ import (
 )
 
 func (s Session) FilterValue() string { return s.Title }
-func (s Session) Description() string { return s.Cwd + "  " + age(time.Since(s.ModTime)) }
+func (s Session) Description() string {
+	if !s.Trashed {
+		return s.Cwd + "  " + age(time.Since(s.ModTime))
+	}
+	at := "unknown"
+	if !s.TrashedAt.IsZero() {
+		at = s.TrashedAt.Local().Format("2006-01-02 15:04")
+	}
+	return s.Cwd + "  deleted " + at
+}
 
 // Go forbids a method named like the Session.Title field, and the list's
 // DefaultItem needs a Title() method.
@@ -45,6 +55,10 @@ var (
 	archiveKey = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "archive/unarchive"))
 	viewKey    = key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "active/all"))
 	searchKey  = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search"))
+	trashKey   = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "move to trash"))
+	trashView  = key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "trash view"))
+	restoreKey = key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "in trash, restore"))
+	purgeKey   = key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "in trash, purge now"))
 	// Help only: while the query has focus, updateSearch reads keys itself.
 	fullTextKey = key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("ctrl+f", "in search, toggle full-text"))
 )
@@ -66,7 +80,10 @@ type model struct {
 	config, data string
 	sessions     []Session
 	showAll      bool
-	err          error
+	trash        bool
+	// Set by X until the next key, which purges it only when that key is y.
+	purging *Session
+	err     error
 
 	input     textinput.Model
 	searching bool
@@ -95,7 +112,8 @@ func newModel(config, data string, sessions []Session) model {
 	l.SetFilteringEnabled(false)
 	l.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{resumeKey, archiveKey, viewKey, searchKey} }
 	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{resumeKey, archiveKey, viewKey, searchKey, fullTextKey, l.KeyMap.ForceQuit}
+		return []key.Binding{resumeKey, archiveKey, viewKey, searchKey, fullTextKey,
+			trashKey, trashView, restoreKey, purgeKey, l.KeyMap.ForceQuit}
 	}
 	rg, _ := exec.LookPath("rg")
 	m := model{list: l, config: config, data: data, sessions: sessions, input: textinput.New(), rg: rg}
@@ -106,7 +124,7 @@ func newModel(config, data string, sessions []Session) model {
 func (m model) viewSessions() []Session {
 	var out []Session
 	for _, s := range m.sessions {
-		if m.showAll || !s.Archived {
+		if m.trash && s.Trashed || !m.trash && !s.Trashed && (m.showAll || !s.Archived) {
 			out = append(out, s)
 		}
 	}
@@ -128,16 +146,28 @@ func (m *model) refresh() {
 	m.list.Select(max(0, min(idx, len(items)-1)))
 }
 
-func (m *model) setArchived(s Session, archived bool) error {
-	moved, err := setArchived(s, archived, m.config, m.data)
-	if err != nil {
-		return err
-	}
+// record replaces s with moved, which the move functions return as s when
+// nothing moved, and returns err.
+func (m *model) record(s, moved Session, err error) error {
 	for i := range m.sessions {
 		if m.sessions[i].Path == s.Path {
 			m.sessions[i] = moved
 		}
 	}
+	m.refresh()
+	return err
+}
+
+func (m *model) setArchived(s Session, archived bool) error {
+	moved, err := setArchived(s, archived, m.config, m.data)
+	return m.record(s, moved, err)
+}
+
+func (m *model) purge(s Session) error {
+	if err := purge(s, m.config, m.data); err != nil {
+		return err
+	}
+	m.sessions = slices.DeleteFunc(m.sessions, func(o Session) bool { return o.Path == s.Path })
 	m.refresh()
 	return nil
 }
@@ -225,6 +255,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.searching {
 			return m.updateSearch(msg)
 		}
+		if s := m.purging; s != nil {
+			m.purging = nil
+			if msg.String() == "y" {
+				m.err = m.purge(*s)
+			}
+			return m, nil
+		}
 		it, selected := m.list.SelectedItem().(item)
 		switch {
 		case key.Matches(msg, searchKey):
@@ -233,6 +270,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case msg.Type == tea.KeyEsc && m.filtered():
 			m.input.Reset()
 			m.resetSearch(m.fullText)
+			return m, nil
+		case msg.Type == tea.KeyEsc && m.trash:
+			m.trash = false
+			m.list.Title = "Claude Code sessions"
+			m.refresh()
+			return m, nil
+		case key.Matches(msg, trashView) && !m.trash:
+			// Full-text matches were computed over the view being left.
+			m.input.Reset()
+			m.trash = true
+			m.list.Title = "Trash"
+			m.resetSearch(m.fullText)
+			return m, nil
+		case m.trash:
+			switch {
+			case key.Matches(msg, restoreKey) && selected:
+				moved, err := restore(it.Session, m.config, m.data)
+				m.err = m.record(it.Session, moved, err)
+				return m, nil
+			case key.Matches(msg, purgeKey) && selected:
+				s := it.Session
+				m.purging = &s
+				return m, nil
+			case key.Matches(msg, viewKey, archiveKey, resumeKey, trashKey):
+				return m, nil
+			}
+		case key.Matches(msg, trashKey) && selected:
+			moved, err := trash(it.Session, m.config, m.data)
+			m.err = m.record(it.Session, moved, err)
 			return m, nil
 		case key.Matches(msg, viewKey):
 			m.showAll = !m.showAll
@@ -273,6 +339,9 @@ func (m model) View() string {
 			in.Prompt = "full-text (scan): "
 		}
 		v += "\n" + in.View()
+	}
+	if m.purging != nil {
+		v += fmt.Sprintf("\npurge %s for good? y/n", m.purging.Title)
 	}
 	if m.err != nil {
 		v += "\nerror: " + m.err.Error()

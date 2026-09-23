@@ -15,19 +15,29 @@ import (
 )
 
 type Session struct {
-	UUID     string
-	Project  string
-	Path     string
-	ModTime  time.Time
-	Title    string
-	Cwd      string
-	Prompt   string
+	UUID    string
+	Project string
+	Path    string
+	ModTime time.Time
+	Title   string
+	Cwd     string
+	Prompt  string
+	// For a trashed session Archived is the origin its sidecar records, which
+	// is where a restore puts it back.
 	Archived bool
+	Trashed  bool
+	// Zero when the sidecar is unreadable.
+	TrashedAt time.Time
 }
 
 // A project directory also holds files like <uuid>.orphaned-<n>-<hex>.jsonl;
 // later milestones move whatever is listed, so only canonical names count.
-var sessionName = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$`)
+const uuidPattern = `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
+
+var (
+	sessionName   = regexp.MustCompile(`^` + uuidPattern + `\.jsonl$`)
+	canonicalUUID = regexp.MustCompile(`^` + uuidPattern + `$`)
+)
 
 func configDir() (string, error) {
 	// The spec's rule is "when set", and set-but-empty is set.
@@ -56,8 +66,9 @@ func dataDir() (string, error) {
 
 func activeRoot(config string) string { return filepath.Join(config, "projects") }
 func archiveRoot(data string) string  { return filepath.Join(data, "archive") }
+func trashRoot(data string) string    { return filepath.Join(data, "trash") }
 
-// The archive does not exist until the first session is archived.
+// The archive and the trash do not exist until a session is first moved there.
 func listSessions(config, data string) ([]Session, error) {
 	out, err := scanSessions(activeRoot(config), false)
 	if err != nil {
@@ -68,6 +79,16 @@ func listSessions(config, data string) ([]Session, error) {
 		return nil, err
 	}
 	out = append(out, archived...)
+	trashed, err := scanSessions(trashRoot(data), false)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, err
+	}
+	for i := range trashed {
+		t := &trashed[i]
+		t.Trashed = true
+		t.TrashedAt, t.Archived = readSidecar(sidecarPath(filepath.Dir(t.Path), t.UUID))
+	}
+	out = append(out, trashed...)
 	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
 	return out, nil
 }
