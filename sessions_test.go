@@ -43,8 +43,8 @@ func TestListSessionsListsOnlyCanonicalUUIDFilesNewestFirst(t *testing.T) {
 	} {
 		write(t, filepath.Join(p1, name), "", now)
 	}
-	write(t, filepath.Join(p1, uuidA, "x.jsonl"), "", now)            // sibling dir contents
-	write(t, filepath.Join(cfg, "projects", uuidC+".jsonl"), "", now) // not inside a project dir
+	write(t, filepath.Join(p1, uuidA, "x.jsonl"), "", now)
+	write(t, filepath.Join(cfg, "projects", uuidC+".jsonl"), "", now)
 	if err := os.Mkdir(filepath.Join(p2, uuidC+".jsonl"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -139,5 +139,19 @@ func TestParseReadsLinesPastOneMiBAndSkipsOnlyMalformedLines(t *testing.T) {
 	}
 	if s.Title != "custom one" {
 		t.Errorf("title = %q, the line after the malformed one was not parsed", s.Title)
+	}
+}
+
+func TestConfigDirHonoursClaudeConfigDirEvenWhenEmpty(t *testing.T) {
+	t.Setenv("HOME", "/home/someone")
+	for _, v := range []string{"/custom", ""} {
+		t.Setenv("CLAUDE_CONFIG_DIR", v)
+		if got, _ := configDir(); got != v {
+			t.Errorf("CLAUDE_CONFIG_DIR=%q: configDir = %q", v, got)
+		}
+	}
+	os.Unsetenv("CLAUDE_CONFIG_DIR")
+	if got, _ := configDir(); got != filepath.Join("/home/someone", ".claude") {
+		t.Errorf("unset: configDir = %q", got)
 	}
 }

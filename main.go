@@ -1,4 +1,3 @@
-// Command ccarchive is a terminal UI to list and resume Claude Code sessions.
 package main
 
 import (

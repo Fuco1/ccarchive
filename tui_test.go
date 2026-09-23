@@ -40,7 +40,6 @@ func quits(cmd tea.Cmd) bool {
 	return ok
 }
 
-// fakeClaude puts an executable named claude alone on PATH.
 func fakeClaude(t *testing.T) string {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "claude")
@@ -133,11 +132,11 @@ func TestRowShowsTitleCwdAndAge(t *testing.T) {
 
 // The list's defaults also page on b, u, f and d without listing them in help.
 func TestUnlistedDefaultPageKeysAreUnbound(t *testing.T) {
-	m := sized(make([]Session, 50)...)
-	for _, k := range []string{"f", "d", "l"} {
+	m, _ := press(t, sized(make([]Session, 50)...), "l")
+	for _, k := range []string{"b", "u", "f", "d"} {
 		m, _ = press(t, m, k)
-	}
-	if got := m.list.Paginator.Page; got != 1 {
-		t.Fatalf("page = %d, want 1: only l should have paged", got)
+		if got := m.list.Paginator.Page; got != 1 {
+			t.Fatalf("after %s page = %d, want 1", k, got)
+		}
 	}
 }

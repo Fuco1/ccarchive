@@ -14,8 +14,8 @@ import (
 func (s Session) FilterValue() string { return s.Title }
 func (s Session) Description() string { return s.Cwd + "  " + age(time.Since(s.ModTime)) }
 
-// Title is a field on Session, so the list's DefaultItem interface is met
-// through this wrapper.
+// Go forbids a method named like the Session.Title field, and the list's
+// DefaultItem needs a Title() method.
 type item struct{ Session }
 
 func (i item) Title() string { return i.Session.Title }
@@ -49,7 +49,8 @@ func keyMap() list.KeyMap {
 type model struct {
 	list list.Model
 	err  error
-	// resume is set when Enter passed its checks; main execs it after Run.
+	// The exec has to wait until Run has restored the terminal, so Update
+	// only records its target here.
 	resume *resumeTarget
 }
 
