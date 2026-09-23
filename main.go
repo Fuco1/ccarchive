@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -28,7 +29,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	final, err := tea.NewProgram(newModel(config, data, sessions), tea.WithAltScreen()).Run()
+	// A failed purge is shown rather than fatal: the trash would otherwise
+	// lock the operator out of every other session.
+	sessions, purgeErr := purgeExpired(sessions, config, data, time.Now())
+	m := newModel(config, data, sessions)
+	m.err = purgeErr
+	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 	if err != nil {
 		return err
 	}

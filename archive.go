@@ -12,9 +12,6 @@ import (
 // rename is renameNoReplace; tests replace it to make one move of a pair fail.
 var rename = renameNoReplace
 
-// setArchived moves s between <config>/projects and <data>/archive. There is no
-// copy fallback when the two sit on different filesystems: a copy-then-delete
-// that dies halfway is where a transcript gets lost.
 func setArchived(s Session, archived bool, config, data string) (Session, error) {
 	if s.Archived == archived {
 		return s, nil
@@ -23,8 +20,18 @@ func setArchived(s Session, archived bool, config, data string) (Session, error)
 	if !archived {
 		from, to = to, from
 	}
-	from, to = filepath.Join(from, s.Project), filepath.Join(to, s.Project)
+	moved, err := moveSession(s, from, to, config)
+	if err != nil {
+		return s, err
+	}
+	moved.Archived = archived
+	return moved, nil
+}
 
+// There is no copy fallback when the two roots sit on different filesystems:
+// a copy-then-delete that dies halfway is where a transcript gets lost.
+func moveSession(s Session, fromRoot, toRoot, config string) (Session, error) {
+	from, to := filepath.Join(fromRoot, s.Project), filepath.Join(toRoot, s.Project)
 	if live, err := isLive(config, s.UUID); err != nil {
 		return s, err
 	} else if live {
@@ -33,6 +40,12 @@ func setArchived(s Session, archived bool, config, data string) (Session, error)
 	names := []string{s.UUID + ".jsonl"}
 	if _, err := os.Lstat(filepath.Join(from, s.UUID)); err == nil {
 		names = append(names, s.UUID)
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return s, err
+	}
+	// Without a <uuid>/ to move, no rename would trip over one already there.
+	if _, err := os.Lstat(filepath.Join(to, s.UUID)); err == nil {
+		return s, fmt.Errorf("%s already exists", filepath.Join(to, s.UUID))
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return s, err
 	}
@@ -49,7 +62,6 @@ func setArchived(s Session, archived bool, config, data string) (Session, error)
 			return s, err
 		}
 	}
-	s.Archived = archived
 	s.Path = filepath.Join(to, names[0])
 	return s, nil
 }
