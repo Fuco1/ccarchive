@@ -81,9 +81,8 @@ type model struct {
 	sessions     []Session
 	showAll      bool
 	trash        bool
-	// Set by X until the next key, which purges it only when that key is y.
-	purging *Session
-	err     error
+	purging      *Session
+	err          error
 
 	input     textinput.Model
 	searching bool
@@ -284,7 +283,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.resetSearch(m.fullText)
 			return m, nil
 		case m.trash:
-			// No later case runs in the trash view, so d, a, tab and enter do nothing.
 			switch {
 			case key.Matches(msg, restoreKey) && selected:
 				moved, err := restore(it.Session, m.config, m.data)

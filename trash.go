@@ -25,9 +25,6 @@ type sidecar struct {
 
 func sidecarPath(dir, uuid string) string { return filepath.Join(dir, uuid+".trashed") }
 
-// readSidecar returns a zero time and the active store for a sidecar that is
-// missing, malformed or names an unknown origin: that entry's deletion time is
-// unknown, so the startup purge leaves it alone.
 func readSidecar(path string) (deletedAt time.Time, archived bool) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -82,8 +79,6 @@ func writeSidecar(path string, sc sidecar) error {
 	return err
 }
 
-// restore returns the moved session with a non-nil error when only the
-// sidecar's removal failed, so the caller records where the session now is.
 func restore(s Session, config, data string) (Session, error) {
 	to := activeRoot(config)
 	if s.Archived {
@@ -100,8 +95,8 @@ func restore(s Session, config, data string) (Session, error) {
 	return moved, nil
 }
 
-// purge validates the uuid before building any path from it: an empty one
-// turns <config>/file-history/<uuid> into every session's history.
+// An empty uuid would turn <config>/file-history/<uuid> into every session's
+// history, so it is checked before any path is built from it.
 func purge(s Session, config, data string) error {
 	if !canonicalUUID.MatchString(s.UUID) {
 		return fmt.Errorf("refusing to purge %q: not a canonical UUID", s.UUID)
@@ -126,8 +121,6 @@ func purge(s Session, config, data string) error {
 	return nil
 }
 
-// purgeExpired returns the sessions it did not purge. An entry with an
-// unreadable sidecar has a zero TrashedAt and is never purged here.
 func purgeExpired(sessions []Session, config, data string, now time.Time) ([]Session, error) {
 	var kept []Session
 	var errs []error

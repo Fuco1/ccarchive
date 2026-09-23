@@ -15,18 +15,15 @@ import (
 )
 
 type Session struct {
-	UUID    string
-	Project string
-	Path    string
-	ModTime time.Time
-	Title   string
-	Cwd     string
-	Prompt  string
-	// For a trashed session Archived is the origin its sidecar records, which
-	// is where a restore puts it back.
-	Archived bool
-	Trashed  bool
-	// Zero when the sidecar is unreadable.
+	UUID      string
+	Project   string
+	Path      string
+	ModTime   time.Time
+	Title     string
+	Cwd       string
+	Prompt    string
+	Archived  bool
+	Trashed   bool
 	TrashedAt time.Time
 }
 

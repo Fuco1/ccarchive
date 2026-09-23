@@ -17,7 +17,7 @@ const (
 	uuidE = "55555555-5555-4555-8555-555555555555"
 )
 
-// emptyStore has Claude's projects dir, which the listing requires, and nothing else.
+// listSessions fails without <config>/projects.
 func emptyStore(t *testing.T) store {
 	t.Helper()
 	st := store{cfg: t.TempDir(), data: t.TempDir()}
@@ -29,7 +29,6 @@ func emptyStore(t *testing.T) store {
 
 func (st store) trashed(name string) string { return filepath.Join(st.data, "trash", project, name) }
 
-// putInTrash writes a trashed session straight to disk; a sidecar of "" writes none.
 func putInTrash(t *testing.T, st store, uuid, title, sc string) {
 	t.Helper()
 	write(t, st.trashed(uuid+".jsonl"),
@@ -101,7 +100,6 @@ func TestTrashedSessionIsInNeitherActiveNorAllView(t *testing.T) {
 	if m.err != nil {
 		t.Fatal(m.err)
 	}
-	// Both the model that trashed it and one reloaded from disk.
 	for _, m := range []model{m, st.model(t)} {
 		if strings.Contains(m.View(), "hello") {
 			t.Errorf("active view lists it:\n%s", m.View())
@@ -133,6 +131,20 @@ func TestTrashRefusesExistingDestination(t *testing.T) {
 	}
 	mustExist(t, st.active(uuidA+".jsonl"), st.active(filepath.Join(uuidA, "sub", "f.txt")))
 	mustNotExist(t, st.trashed(uuidA+".trashed"))
+}
+
+func TestTrashRefusesExistingSiblingDirWhenSessionHasNone(t *testing.T) {
+	st, m := newStore(t)
+	if err := os.RemoveAll(st.active(uuidA)); err != nil {
+		t.Fatal(err)
+	}
+	write(t, st.trashed(filepath.Join(uuidA, "theirs")), "someone else's", time.Now())
+	m, _ = press(t, m, "d")
+	if m.err == nil || !strings.Contains(m.View(), "already exists") {
+		t.Fatalf("not refused:\n%s", m.View())
+	}
+	mustExist(t, st.active(uuidA+".jsonl"))
+	mustNotExist(t, st.trashed(uuidA+".jsonl"), st.trashed(uuidA+".trashed"))
 }
 
 func TestTrashSiblingDirMoveFailureMovesJsonlBack(t *testing.T) {
@@ -233,6 +245,22 @@ func TestRestoreMovesSessionToItsOriginCreatingProjectDirAndRemovesSidecar(t *te
 	}
 }
 
+func TestRestoreRefusesExistingSiblingDirWhenSessionHasNone(t *testing.T) {
+	st := emptyStore(t)
+	putInTrash(t, st, uuidA, "binned", sidecarJSON(t, time.Now(), originActive))
+	if err := os.RemoveAll(st.trashed(uuidA)); err != nil {
+		t.Fatal(err)
+	}
+	write(t, st.active(filepath.Join(uuidA, "theirs")), "someone else's", time.Now())
+	m, _ := press(t, st.model(t), "T")
+	m, _ = press(t, m, "u")
+	if m.err == nil || !strings.Contains(m.View(), "already exists") {
+		t.Fatalf("not refused:\n%s", m.View())
+	}
+	mustExist(t, st.trashed(uuidA+".jsonl"), st.trashed(uuidA+".trashed"))
+	mustNotExist(t, st.active(uuidA+".jsonl"))
+}
+
 func TestRestoreRefusesExistingDestination(t *testing.T) {
 	st := emptyStore(t)
 	putInTrash(t, st, uuidA, "binned", sidecarJSON(t, time.Now(), originActive))
@@ -248,8 +276,6 @@ func TestRestoreRefusesExistingDestination(t *testing.T) {
 	}
 }
 
-// purgeable puts uuidA in the trash with Claude's per-session dirs, and a
-// file-history entry of another session that no purge may touch.
 func purgeable(t *testing.T) (store, []string, string) {
 	t.Helper()
 	st := emptyStore(t)
@@ -296,7 +322,6 @@ func TestPurgeOnAnyOtherKeyDeletesNothing(t *testing.T) {
 			if strings.Contains(m.View(), "y/n") {
 				t.Errorf("still asking after %s:\n%s", k, m.View())
 			}
-			// The answer is spent: a later y is not a confirmation.
 			m, _ = press(t, m, "y")
 			mustExist(t, owned...)
 		})
@@ -386,8 +411,8 @@ func TestSessionKeysDoNothingInTrashView(t *testing.T) {
 	for _, k := range []string{"enter", "a", "d", "tab", "T"} {
 		var cmd tea.Cmd
 		m, cmd = press(t, m, k)
-		if m.err != nil || cmd != nil || m.resume != nil || !m.trash {
-			t.Fatalf("%s acted in the trash view: err=%v resume=%v trash=%v", k, m.err, m.resume, m.trash)
+		if m.err != nil || cmd != nil || m.resume != nil || !m.trash || m.showAll {
+			t.Fatalf("%s acted in the trash view: err=%v resume=%v trash=%v showAll=%v", k, m.err, m.resume, m.trash, m.showAll)
 		}
 	}
 	mustExist(t, st.trashed(uuidA+".jsonl"), st.trashed(uuidA+".trashed"))
