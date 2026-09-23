@@ -33,7 +33,7 @@ func (st store) trashed(name string) string { return filepath.Join(st.data, "tra
 func putInTrash(t *testing.T, st store, uuid, title, sc string) {
 	t.Helper()
 	write(t, st.trashed(uuid+".jsonl"),
-		`{"type":"custom-title","customTitle":"`+title+`"}`+"\n"+`{"type":"user","cwd":"/`+title+`"}`+"\n",
+		`{"type":"custom-title","customTitle":"`+title+`"}`+"\n"+`{"type":"user","cwd":"cwd-`+title+`"}`+"\n",
 		time.Now().Add(-100*24*time.Hour))
 	write(t, st.trashed(filepath.Join(uuid, "f.txt")), "sibling", time.Now())
 	if sc != "" {
@@ -158,9 +158,9 @@ func TestTrashViewListsTitleCwdAndDeletionTimeOrUnknown(t *testing.T) {
 	m, _ := press(t, st.model(t), "T")
 	v := m.View()
 	for _, want := range []string{
-		"known", "/known  deleted 2026-09-01 12:30",
-		"garbled", "/garbled  deleted unknown",
-		"missing", "/missing  deleted unknown",
+		"known", "cwd-known  deleted 2026-09-01 12:30",
+		"garbled", "cwd-garbled  deleted unknown",
+		"missing", "cwd-missing  deleted unknown",
 	} {
 		if !strings.Contains(v, want) {
 			t.Errorf("trash view lacks %q:\n%s", want, v)
