@@ -1,0 +1,172 @@
+package main
+
+import (
+	"bufio"
+	"encoding/json"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strings"
+	"time"
+)
+
+// Session is one Claude Code transcript, <config>/projects/<Project>/<UUID>.jsonl.
+type Session struct {
+	UUID    string
+	Project string
+	Path    string
+	ModTime time.Time
+	Title   string
+	Cwd     string
+}
+
+// A project directory also holds files like <uuid>.orphaned-<n>-<hex>.jsonl;
+// later milestones move whatever is listed, so only canonical names count.
+var sessionName = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$`)
+
+// configDir is Claude's config dir: $CLAUDE_CONFIG_DIR, else ~/.claude.
+func configDir() (string, error) {
+	if d := os.Getenv("CLAUDE_CONFIG_DIR"); d != "" {
+		return d, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".claude"), nil
+}
+
+// listSessions returns every session under <config>/projects, newest mtime first.
+func listSessions(config string) ([]Session, error) {
+	projects := filepath.Join(config, "projects")
+	dirs, err := os.ReadDir(projects)
+	if err != nil {
+		return nil, err
+	}
+	var out []Session
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		files, err := os.ReadDir(filepath.Join(projects, d.Name()))
+		if err != nil {
+			return nil, err
+		}
+		for _, f := range files {
+			if !f.Type().IsRegular() || !sessionName.MatchString(f.Name()) {
+				continue
+			}
+			info, err := f.Info()
+			if err != nil {
+				return nil, err
+			}
+			s := Session{
+				UUID:    strings.TrimSuffix(f.Name(), ".jsonl"),
+				Project: d.Name(),
+				Path:    filepath.Join(projects, d.Name(), f.Name()),
+				ModTime: info.ModTime(),
+			}
+			if err := s.parse(); err != nil {
+				return nil, err
+			}
+			out = append(out, s)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ModTime.After(out[j].ModTime) })
+	return out, nil
+}
+
+type record struct {
+	Type        string `json:"type"`
+	CustomTitle string `json:"customTitle"`
+	AiTitle     string `json:"aiTitle"`
+	Cwd         string `json:"cwd"`
+	IsMeta      bool   `json:"isMeta"`
+	Message     struct {
+		Content json.RawMessage `json:"content"`
+	} `json:"message"`
+}
+
+// parse fills Title and Cwd from the transcript. Lines run to hundreds of KiB
+// because attachments are inlined, so it reads with ReadBytes rather than a
+// bufio.Scanner, whose token limit would drop them.
+func (s *Session) parse() error {
+	f, err := os.Open(s.Path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	r := bufio.NewReader(f)
+	var custom, ai, prompt string
+	for {
+		line, err := r.ReadBytes('\n')
+		if len(line) > 0 {
+			var rec record
+			if json.Unmarshal(line, &rec) == nil {
+				if s.Cwd == "" {
+					s.Cwd = rec.Cwd
+				}
+				switch rec.Type {
+				case "custom-title":
+					if rec.CustomTitle != "" {
+						custom = rec.CustomTitle
+					}
+				case "ai-title":
+					if rec.AiTitle != "" {
+						ai = rec.AiTitle
+					}
+				case "user":
+					if prompt == "" && !rec.IsMeta {
+						prompt = firstLine(contentText(rec.Message.Content))
+					}
+				}
+			}
+		}
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+	s.Title = s.UUID
+	for _, t := range []string{custom, ai, prompt} {
+		if t != "" {
+			s.Title = t
+			break
+		}
+	}
+	return nil
+}
+
+// contentText is message.content when it is a string, else its first
+// non-empty "text" item.
+func contentText(raw json.RawMessage) string {
+	var str string
+	if json.Unmarshal(raw, &str) == nil {
+		return str
+	}
+	var items []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &items) == nil {
+		for _, it := range items {
+			if it.Type == "text" && strings.TrimSpace(it.Text) != "" {
+				return it.Text
+			}
+		}
+	}
+	return ""
+}
+
+func firstLine(s string) string {
+	s = strings.TrimSpace(s)
+	if i := strings.IndexAny(s, "\r\n"); i >= 0 {
+		s = strings.TrimSpace(s[:i])
+	}
+	return s
+}
