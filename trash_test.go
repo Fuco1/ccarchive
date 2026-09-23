@@ -8,9 +8,14 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
-const uuidD = "44444444-4444-4444-8444-444444444444"
+const (
+	uuidD = "44444444-4444-4444-8444-444444444444"
+	uuidE = "55555555-5555-4555-8555-555555555555"
+)
 
 // emptyStore has Claude's projects dir, which the listing requires, and nothing else.
 func emptyStore(t *testing.T) store {
@@ -332,7 +337,8 @@ func TestStartupPurgesOnlyEntriesPastThirtyDaysWithReadableSidecar(t *testing.T)
 	putInTrash(t, st, uuidB, "recent", sidecarJSON(t, now.Add(-trashRetention+time.Minute), originActive))
 	putInTrash(t, st, uuidC, "garbled", "{not json")
 	putInTrash(t, st, uuidD, "missing", "")
-	for _, u := range []string{uuidA, uuidB, uuidC, uuidD} {
+	putInTrash(t, st, uuidE, "odd origin", sidecarJSON(t, now.Add(-2*trashRetention), "elsewhere"))
+	for _, u := range []string{uuidA, uuidB, uuidC, uuidD, uuidE} {
 		write(t, filepath.Join(st.cfg, "file-history", u, "x"), "", now)
 	}
 	sessions, err := listSessions(st.cfg, st.data)
@@ -345,14 +351,45 @@ func TestStartupPurgesOnlyEntriesPastThirtyDaysWithReadableSidecar(t *testing.T)
 	}
 	mustNotExist(t, st.trashed(uuidA+".jsonl"), st.trashed(uuidA), st.trashed(uuidA+".trashed"),
 		filepath.Join(st.cfg, "file-history", uuidA))
-	for _, u := range []string{uuidB, uuidC, uuidD} {
+	for _, u := range []string{uuidB, uuidC, uuidD, uuidE} {
 		mustExist(t, st.trashed(u+".jsonl"), st.trashed(u), filepath.Join(st.cfg, "file-history", u))
 	}
 	var got []string
 	for _, s := range kept {
 		got = append(got, s.UUID)
 	}
-	if len(got) != 3 || strings.Contains(strings.Join(got, " "), uuidA) {
+	if len(got) != 4 || strings.Contains(strings.Join(got, " "), uuidA) {
 		t.Errorf("kept %v", got)
 	}
+}
+
+func TestTrashRefusesExistingSidecarAndMovesSessionBack(t *testing.T) {
+	st, m := newStore(t)
+	write(t, st.trashed(uuidA+".trashed"), "someone else's", time.Now())
+	m, _ = press(t, m, "d")
+	if m.err == nil || !strings.Contains(m.View(), "exists") {
+		t.Fatalf("not refused:\n%s", m.View())
+	}
+	mustExist(t, st.active(uuidA+".jsonl"), st.active(filepath.Join(uuidA, "sub", "f.txt")))
+	mustNotExist(t, st.trashed(uuidA+".jsonl"), st.trashed(uuidA))
+	if b, _ := os.ReadFile(st.trashed(uuidA + ".trashed")); string(b) != "someone else's" {
+		t.Errorf("existing sidecar replaced: %q", b)
+	}
+}
+
+func TestSessionKeysDoNothingInTrashView(t *testing.T) {
+	fakeClaude(t)
+	st := emptyStore(t)
+	putInTrash(t, st, uuidA, "binned", sidecarJSON(t, time.Now(), originArchive))
+	m, _ := press(t, st.model(t), "T")
+	m.sessions[0].Cwd = t.TempDir()
+	for _, k := range []string{"enter", "a", "d", "tab", "T"} {
+		var cmd tea.Cmd
+		m, cmd = press(t, m, k)
+		if m.err != nil || cmd != nil || m.resume != nil || !m.trash {
+			t.Fatalf("%s acted in the trash view: err=%v resume=%v trash=%v", k, m.err, m.resume, m.trash)
+		}
+	}
+	mustExist(t, st.trashed(uuidA+".jsonl"), st.trashed(uuidA+".trashed"))
+	mustNotExist(t, st.active(uuidA+".jsonl"), st.archived(uuidA+".jsonl"))
 }

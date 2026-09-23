@@ -284,6 +284,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.resetSearch(m.fullText)
 			return m, nil
 		case m.trash:
+			// No later case runs in the trash view, so d, a, tab and enter do nothing.
 			switch {
 			case key.Matches(msg, restoreKey) && selected:
 				moved, err := restore(it.Session, m.config, m.data)
@@ -292,8 +293,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case key.Matches(msg, purgeKey) && selected:
 				s := it.Session
 				m.purging = &s
-				return m, nil
-			case key.Matches(msg, viewKey, archiveKey, resumeKey, trashKey):
 				return m, nil
 			}
 		case key.Matches(msg, trashKey) && selected:
