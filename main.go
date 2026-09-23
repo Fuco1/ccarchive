@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,10 +41,6 @@ func run() error {
 	if t == nil {
 		return nil
 	}
-	// Run has restored the terminal by now; the operator runs each resumed
-	// session in its own tmux window, so ccarchive does not come back.
-	if err := os.Chdir(t.cwd); err != nil {
-		return err
-	}
-	return syscall.Exec(t.claude, []string{"claude", "--resume", t.uuid}, os.Environ())
+	// Run has restored the terminal by now.
+	return resume(*t)
 }
