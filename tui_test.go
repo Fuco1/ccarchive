@@ -30,6 +30,10 @@ func press(t *testing.T, m model, k string) (model, tea.Cmd) {
 		msg = tea.KeyMsg{Type: tea.KeyDown}
 	case "tab":
 		msg = tea.KeyMsg{Type: tea.KeyTab}
+	case "esc":
+		msg = tea.KeyMsg{Type: tea.KeyEsc}
+	case "ctrl+f":
+		msg = tea.KeyMsg{Type: tea.KeyCtrlF}
 	default:
 		msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 	}
@@ -123,7 +127,7 @@ func TestHelpViewListsEveryBoundKey(t *testing.T) {
 			t.Errorf("help view lacks %q:\n%s", k, view)
 		}
 	}
-	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`} {
+	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`} {
 		if !regexp.MustCompile(re).MatchString(view) {
 			t.Errorf("help view lacks %s:\n%s", re, view)
 		}

@@ -21,6 +21,7 @@ type Session struct {
 	ModTime  time.Time
 	Title    string
 	Cwd      string
+	Prompt   string
 	Archived bool
 }
 
@@ -129,7 +130,7 @@ func (s *Session) parse() error {
 	}
 	defer f.Close()
 	r := bufio.NewReader(f)
-	var custom, ai, prompt string
+	var custom, ai string
 	cwdSeen := false
 	for {
 		line, err := r.ReadBytes('\n')
@@ -149,8 +150,8 @@ func (s *Session) parse() error {
 						ai = rec.AiTitle
 					}
 				case "user":
-					if prompt == "" && !rec.IsMeta {
-						prompt = firstLine(contentText(rec.Message.Content))
+					if s.Prompt == "" && !rec.IsMeta {
+						s.Prompt = strings.TrimSpace(contentText(rec.Message.Content))
 					}
 				}
 			}
@@ -163,7 +164,7 @@ func (s *Session) parse() error {
 		}
 	}
 	s.Title = s.UUID
-	for _, t := range []string{custom, ai, prompt} {
+	for _, t := range []string{custom, ai, firstLine(s.Prompt)} {
 		if t != "" {
 			s.Title = t
 			break
@@ -181,14 +182,15 @@ func contentText(raw json.RawMessage) string {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	}
+	var texts []string
 	if json.Unmarshal(raw, &items) == nil {
 		for _, it := range items {
 			if it.Type == "text" && strings.TrimSpace(it.Text) != "" {
-				return it.Text
+				texts = append(texts, it.Text)
 			}
 		}
 	}
-	return ""
+	return strings.Join(texts, "\n")
 }
 
 func firstLine(s string) string {
