@@ -78,11 +78,11 @@ func listSessions(config string) ([]Session, error) {
 }
 
 type record struct {
-	Type        string `json:"type"`
-	CustomTitle string `json:"customTitle"`
-	AiTitle     string `json:"aiTitle"`
-	Cwd         string `json:"cwd"`
-	IsMeta      bool   `json:"isMeta"`
+	Type        string  `json:"type"`
+	CustomTitle string  `json:"customTitle"`
+	AiTitle     string  `json:"aiTitle"`
+	Cwd         *string `json:"cwd"`
+	IsMeta      bool    `json:"isMeta"`
 	Message     struct {
 		Content json.RawMessage `json:"content"`
 	} `json:"message"`
@@ -98,13 +98,14 @@ func (s *Session) parse() error {
 	defer f.Close()
 	r := bufio.NewReader(f)
 	var custom, ai, prompt string
+	cwdSeen := false
 	for {
 		line, err := r.ReadBytes('\n')
 		if len(line) > 0 {
 			var rec record
 			if json.Unmarshal(line, &rec) == nil {
-				if s.Cwd == "" {
-					s.Cwd = rec.Cwd
+				if !cwdSeen && rec.Cwd != nil {
+					s.Cwd, cwdSeen = *rec.Cwd, true
 				}
 				switch rec.Type {
 				case "custom-title":

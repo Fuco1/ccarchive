@@ -127,6 +127,13 @@ func TestCwdIsFirstRecordCarryingOne(t *testing.T) {
 	}
 }
 
+func TestCwdIsFirstRecordCarryingOneEvenWhenEmpty(t *testing.T) {
+	s := parseTranscript(t, `{"type":"user","cwd":""}`, `{"type":"user","cwd":"/later"}`)
+	if s.Cwd != "" {
+		t.Fatalf("cwd = %q", s.Cwd)
+	}
+}
+
 func TestParseReadsLinesPastOneMiBAndSkipsOnlyMalformedLines(t *testing.T) {
 	big := `{"type":"user","cwd":"/big","message":{"content":"` + strings.Repeat("x", 2<<20) + `"}}`
 	s := parseTranscript(t,
