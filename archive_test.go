@@ -21,8 +21,6 @@ func (st store) archived(name string) string {
 	return filepath.Join(st.data, "archive", project, name)
 }
 
-// newStore holds one active session uuidA with a sibling directory, and returns
-// the model listing it.
 func newStore(t *testing.T) (store, model) {
 	t.Helper()
 	st := store{cfg: t.TempDir(), data: t.TempDir()}
@@ -153,7 +151,7 @@ func TestMoveRefusesExistingDestination(t *testing.T) {
 		file    bool
 	}{
 		{"archive onto jsonl", true, uuidA + ".jsonl", true},
-		// An empty directory is what os.Rename silently replaces on Linux.
+		// rename(2) replaces an empty directory.
 		{"archive onto empty dir", true, uuidA, false},
 		{"archive onto a file named like the dir", true, uuidA, true},
 		{"unarchive onto jsonl", false, uuidA + ".jsonl", true},

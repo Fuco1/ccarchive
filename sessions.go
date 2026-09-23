@@ -56,8 +56,7 @@ func dataDir() (string, error) {
 func activeRoot(config string) string { return filepath.Join(config, "projects") }
 func archiveRoot(data string) string  { return filepath.Join(data, "archive") }
 
-// listSessions lists active and archived sessions together, newest first. The
-// archive does not exist until the first session is archived.
+// The archive does not exist until the first session is archived.
 func listSessions(config, data string) ([]Session, error) {
 	out, err := scanSessions(activeRoot(config), false)
 	if err != nil {

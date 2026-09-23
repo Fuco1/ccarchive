@@ -62,8 +62,7 @@ func move(src, dst string) error {
 	return err
 }
 
-// isLive reports whether a <config>/sessions/*.json names uuid with a running
-// pid. A reused pid makes it refuse a session that is not live, which is safe.
+// A reused pid makes isLive refuse a session that is not live, which is safe.
 func isLive(config, uuid string) (bool, error) {
 	files, err := filepath.Glob(filepath.Join(config, "sessions", "*.json"))
 	if err != nil {

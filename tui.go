@@ -58,10 +58,9 @@ func keyMap() list.KeyMap {
 type model struct {
 	list         list.Model
 	config, data string
-	// sessions holds active and archived alike; the list shows a view of it.
-	sessions []Session
-	showAll  bool
-	err      error
+	sessions     []Session
+	showAll      bool
+	err          error
 	// The exec has to wait until Run has restored the terminal, so Update
 	// only records its target here.
 	resume *resumeTarget
@@ -99,7 +98,6 @@ func (m *model) refresh() {
 	m.list.Select(max(0, min(idx, len(items)-1)))
 }
 
-// setArchived moves s and records its new place in the model.
 func (m *model) setArchived(s Session, archived bool) error {
 	moved, err := setArchived(s, archived, m.config, m.data)
 	if err != nil {
