@@ -13,5 +13,5 @@ func resume(t resumeTarget) error {
 	if err := os.Chdir(t.cwd); err != nil {
 		return err
 	}
-	return syscall.Exec(t.claude, []string{"claude", "--resume", t.uuid}, os.Environ())
+	return syscall.Exec(t.claude, []string{claudeBin, "--resume", t.uuid}, os.Environ())
 }
