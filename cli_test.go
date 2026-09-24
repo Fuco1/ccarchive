@@ -25,11 +25,10 @@ type cliFixture struct {
 	here, other string
 }
 
-// cliStore is a store behind the environment configDir and dataDir read, with
-// the working directory set to the cwd of the "here" sessions. The other
-// sessions sit in another project, so resolving them shows an id reaches past
-// the scope ls uses. PATH is emptied so that a resume the test did not mean to
-// reach cannot exec the real claude over the test binary.
+// The subcommands find their store through configDir and dataDir, so the
+// fixture must go through the environment rather than a store value. PATH is
+// emptied because resume ends in syscall.Exec: a resume the test did not mean
+// to reach would otherwise replace the test binary with the real claude.
 func cliStore(t *testing.T) cliFixture {
 	t.Helper()
 	xdg := t.TempDir()
