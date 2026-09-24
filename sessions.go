@@ -157,11 +157,9 @@ type record struct {
 // as a session goes on. A title record further back than this is missed.
 const tailWindow = 64 << 10
 
-// parse reads whole lines from the start until cwd and a non-meta prompt are
-// known, then only the file's last tailWindow bytes, or the unread rest if
-// that is smaller. Lines run to hundreds of KiB because attachments are
-// inlined, so the first phase reads with ReadBytes rather than a
-// bufio.Scanner, whose token limit would drop them.
+// The start is read in whole lines rather than a fixed window because a first
+// prompt with a pasted attachment runs to hundreds of KiB and a window would
+// cut it; ReadBytes rather than a bufio.Scanner, whose token limit drops them.
 func (s *Session) parse() error {
 	f, err := os.Open(s.Path)
 	if err != nil {
