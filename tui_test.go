@@ -225,3 +225,37 @@ func TestFullTextSearchesOnlyTranscriptsInScope(t *testing.T) {
 		t.Fatalf("searched %v, want only %s", got, s[0].Path)
 	}
 }
+
+func TestSlashAndEveryQueryEditAdvanceSeq(t *testing.T) {
+	m := sized(Session{UUID: uuidA})
+	for _, k := range []string{"/", "a", "b"} {
+		before := m.seq
+		m, _ = press(t, m, k)
+		if m.seq == before {
+			t.Fatalf("pressing %q left seq at %d", k, before)
+		}
+	}
+}
+
+func TestFullTextResultIsDroppedAfterTheQueryIsEdited(t *testing.T) {
+	s := transcripts(t, needle+"\n")
+	m := sized(s...)
+	// A missing rg makes the run carry an error as well as a result.
+	m.rg = filepath.Join(t.TempDir(), "no-rg")
+	m, _ = press(t, m, "/")
+	m, _ = press(t, m, "ctrl+f")
+	m, _ = press(t, m, needle)
+	m, cmd := press(t, m, "enter")
+	m, _ = press(t, m, "/")
+	m, _ = press(t, m, "x")
+	msg := cmd().(fullTextMsg)
+	if msg.err == nil {
+		t.Fatal("stale run carries no error, so dropping it would be unobservable in m.err")
+	}
+	matches, err := m.matches, m.err
+	next, _ := m.Update(msg)
+	m = next.(model)
+	if m.matches != nil || matches != nil || m.err != err {
+		t.Fatalf("stale result applied: matches %v, err %v", m.matches, m.err)
+	}
+}
