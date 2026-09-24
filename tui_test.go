@@ -3,11 +3,13 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -130,13 +132,16 @@ func TestHelpViewListsEveryBoundKey(t *testing.T) {
 	many := make([]Session, 50)
 	m, _ := press(t, sized(many...), "?")
 	view := m.View()
-	for _, k := range []string{"↑/k", "↓/j", "←/h/pgup", "→/l/pgdn", "g/home", "G/end", "enter", "q", "ctrl+c", "?"} {
-		if !strings.Contains(view, k) {
-			t.Errorf("help view lacks %q:\n%s", k, view)
+	// Walking the fields catches a binding added to keyMap without help text.
+	km := reflect.ValueOf(m.list.KeyMap)
+	for i := 0; i < km.NumField(); i++ {
+		b := km.Field(i).Interface().(key.Binding)
+		if b.Enabled() && (b.Help().Key == "" || !strings.Contains(view, b.Help().Key)) {
+			t.Errorf("help view lacks %s key %q:\n%s", km.Type().Field(i).Name, b.Help().Key, view)
 		}
 	}
-	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`,
-		`\bp\s+this directory/all projects`, `\bd\s+move to trash`, `\bT\s+trash view`, `\bu\s+in trash, restore`, `\bX\s+in trash, purge now`} {
+	for _, re := range []string{`\benter\s+resume`, `\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`,
+		`\bp\s+this directory/all projects`, `\bd\s+move to trash`, `\bT\s+trash view`, `\bu\s+in trash, restore`, `\bX\s+in trash, purge now`, `\bctrl\+c\s+force quit`} {
 		if !regexp.MustCompile(re).MatchString(view) {
 			t.Errorf("help view lacks %s:\n%s", re, view)
 		}
