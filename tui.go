@@ -239,7 +239,11 @@ func (m model) updateSearch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	}
 	var cmd tea.Cmd
+	q := m.input.Value()
 	m.input, cmd = m.input.Update(msg)
+	if m.input.Value() != q {
+		m.seq++
+	}
 	m.refresh()
 	return m, cmd
 }
@@ -276,6 +280,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, searchKey):
 			m.searching = true
+			m.seq++
 			return m, m.input.Focus()
 		case msg.Type == tea.KeyEsc && m.filtered():
 			m.input.Reset()
