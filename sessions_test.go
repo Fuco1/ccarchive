@@ -114,7 +114,7 @@ func TestTitleIsLastCustomTitleAfterCwdAndPrompt(t *testing.T) {
 }
 
 func TestTitleFallsBackToLastAiTitleAfterCwdAndPrompt(t *testing.T) {
-	s := parseTranscript(t, metaUser, cwdUser, ai1, `{"type":"assistant"}`, ai2, stringUser)
+	s := parseTranscript(t, cwdUser, ai1, `{"type":"assistant"}`, ai2, stringUser)
 	if s.Title != "ai two" {
 		t.Fatalf("title = %q", s.Title)
 	}
