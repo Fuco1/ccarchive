@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -9,8 +8,7 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "ccarchive:", err)
+	if rootCmd().Execute() != nil {
 		os.Exit(1)
 	}
 }
