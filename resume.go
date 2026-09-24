@@ -2,9 +2,38 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 )
+
+// claudeBin is the one place the binary is named: prepareResume resolves it
+// and the Unix exec passes it as argv[0].
+const claudeBin = "claude"
+
+type resumeTarget struct {
+	claude string
+	cwd    string
+	uuid   string
+}
+
+// prepareResume checks what the exec needs while the TUI can still show why
+// it cannot happen.
+func prepareResume(s Session) (resumeTarget, error) {
+	if s.Cwd == "" {
+		return resumeTarget{}, fmt.Errorf("session %s records no cwd", s.UUID)
+	}
+	if fi, err := os.Stat(s.Cwd); err != nil {
+		return resumeTarget{}, err
+	} else if !fi.IsDir() {
+		return resumeTarget{}, fmt.Errorf("%s is not a directory", s.Cwd)
+	}
+	claude, err := exec.LookPath(claudeBin)
+	if err != nil {
+		return resumeTarget{}, err
+	}
+	return resumeTarget{claude: claude, cwd: s.Cwd, uuid: s.UUID}, nil
+}
 
 // runChild is portable os/exec, so it carries no build constraint and its test
 // runs on any host; only the Windows resume path calls it.

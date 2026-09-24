@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -103,12 +102,6 @@ type model struct {
 	// The exec has to wait until Run has restored the terminal, so Update
 	// only records its target here.
 	resume *resumeTarget
-}
-
-type resumeTarget struct {
-	claude string
-	cwd    string
-	uuid   string
 }
 
 func newModel(config, data, cwd string, sessions []Session) model {
@@ -367,22 +360,4 @@ func (m model) View() string {
 		v += "\nerror: " + m.err.Error()
 	}
 	return v
-}
-
-// prepareResume checks what the exec needs while the TUI can still show why
-// it cannot happen.
-func prepareResume(s Session) (resumeTarget, error) {
-	if s.Cwd == "" {
-		return resumeTarget{}, fmt.Errorf("session %s records no cwd", s.UUID)
-	}
-	if fi, err := os.Stat(s.Cwd); err != nil {
-		return resumeTarget{}, err
-	} else if !fi.IsDir() {
-		return resumeTarget{}, fmt.Errorf("%s is not a directory", s.Cwd)
-	}
-	claude, err := exec.LookPath("claude")
-	if err != nil {
-		return resumeTarget{}, err
-	}
-	return resumeTarget{claude: claude, cwd: s.Cwd, uuid: s.UUID}, nil
 }
