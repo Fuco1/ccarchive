@@ -44,6 +44,8 @@ func press(t *testing.T, m model, k string) (model, tea.Cmd) {
 		msg = tea.KeyMsg{Type: tea.KeyEsc}
 	case "ctrl+f":
 		msg = tea.KeyMsg{Type: tea.KeyCtrlF}
+	case "backspace":
+		msg = tea.KeyMsg{Type: tea.KeyBackspace}
 	default:
 		msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(k)}
 	}
@@ -228,7 +230,7 @@ func TestFullTextSearchesOnlyTranscriptsInScope(t *testing.T) {
 
 func TestSlashAndEveryQueryEditAdvanceSeq(t *testing.T) {
 	m := sized(Session{UUID: uuidA})
-	for _, k := range []string{"/", "a", "b"} {
+	for _, k := range []string{"/", "a", "b", "backspace"} {
 		before := m.seq
 		m, _ = press(t, m, k)
 		if m.seq == before {
