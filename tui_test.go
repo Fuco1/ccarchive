@@ -140,8 +140,8 @@ func TestHelpViewListsEveryBoundKey(t *testing.T) {
 			t.Errorf("help view lacks %s key %q:\n%s", km.Type().Field(i).Name, b.Help().Key, view)
 		}
 	}
-	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`,
-		`\bp\s+this directory/all projects`, `\bd\s+move to trash`, `\bT\s+trash view`, `\bu\s+in trash, restore`, `\bX\s+in trash, purge now`} {
+	for _, re := range []string{`\benter\s+resume`, `\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`,
+		`\bp\s+this directory/all projects`, `\bd\s+move to trash`, `\bT\s+trash view`, `\bu\s+in trash, restore`, `\bX\s+in trash, purge now`, `\bctrl\+c\s+force quit`} {
 		if !regexp.MustCompile(re).MatchString(view) {
 			t.Errorf("help view lacks %s:\n%s", re, view)
 		}
