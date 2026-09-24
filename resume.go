@@ -7,8 +7,8 @@ import (
 	"os/exec"
 )
 
-// claudeBin is the one place the binary is named: prepareResume resolves it
-// and the Unix exec passes it as argv[0].
+// One name, so the checked binary and the exec'd argv[0] cannot drift apart
+// when Claude's invocation changes.
 const claudeBin = "claude"
 
 type resumeTarget struct {
