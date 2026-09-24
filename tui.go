@@ -57,6 +57,7 @@ var (
 	searchKey  = key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search"))
 	trashKey   = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "move to trash"))
 	trashView  = key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "trash view"))
+	scopeKey   = key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "this directory/all projects"))
 	restoreKey = key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "in trash, restore"))
 	purgeKey   = key.NewBinding(key.WithKeys("X"), key.WithHelp("X", "in trash, purge now"))
 	// Help only: while the query has focus, updateSearch reads keys itself.
@@ -84,6 +85,12 @@ type model struct {
 	purging      *Session
 	err          error
 
+	// cwd is filepath.Clean'd; a session is in scope only on an exact match,
+	// as claude --resume scopes, so a parent directory does not list its
+	// worktrees' sessions.
+	cwd         string
+	allProjects bool
+
 	input     textinput.Model
 	searching bool
 	fullText  bool
@@ -104,18 +111,17 @@ type resumeTarget struct {
 	uuid   string
 }
 
-func newModel(config, data string, sessions []Session) model {
+func newModel(config, data, cwd string, sessions []Session) model {
 	l := list.New(nil, list.NewDefaultDelegate(), 0, 0)
-	l.Title = "Claude Code sessions"
 	l.KeyMap = keyMap()
 	l.SetFilteringEnabled(false)
-	l.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{resumeKey, archiveKey, viewKey, searchKey} }
+	l.AdditionalShortHelpKeys = func() []key.Binding { return []key.Binding{resumeKey, archiveKey, viewKey, scopeKey, searchKey} }
 	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{resumeKey, archiveKey, viewKey, searchKey, fullTextKey,
+		return []key.Binding{resumeKey, archiveKey, viewKey, scopeKey, searchKey, fullTextKey,
 			trashKey, trashView, restoreKey, purgeKey, l.KeyMap.ForceQuit}
 	}
 	rg, _ := exec.LookPath("rg")
-	m := model{list: l, config: config, data: data, sessions: sessions, input: textinput.New(), rg: rg}
+	m := model{list: l, config: config, data: data, cwd: filepath.Clean(cwd), sessions: sessions, input: textinput.New(), rg: rg}
 	m.refresh()
 	return m
 }
@@ -123,6 +129,9 @@ func newModel(config, data string, sessions []Session) model {
 func (m model) viewSessions() []Session {
 	var out []Session
 	for _, s := range m.sessions {
+		if !m.allProjects && filepath.Clean(s.Cwd) != m.cwd {
+			continue
+		}
 		if m.trash && s.Trashed || !m.trash && !s.Trashed && (m.showAll || !s.Archived) {
 			out = append(out, s)
 		}
@@ -131,6 +140,15 @@ func (m model) viewSessions() []Session {
 }
 
 func (m *model) refresh() {
+	m.list.Title = "Claude Code sessions"
+	if m.trash {
+		m.list.Title = "Trash"
+	}
+	if m.allProjects {
+		m.list.Title += ", all projects"
+	} else {
+		m.list.Title += " in " + m.cwd
+	}
 	q := strings.ToLower(m.input.Value())
 	var items []list.Item
 	for _, s := range m.viewSessions() {
@@ -272,7 +290,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case msg.Type == tea.KeyEsc && m.trash:
 			m.trash = false
-			m.list.Title = "Claude Code sessions"
 			m.refresh()
 			return m, nil
 		case key.Matches(msg, trashView) && !m.trash:
@@ -280,7 +297,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// the view being left.
 			m.input.Reset()
 			m.trash = true
-			m.list.Title = "Trash"
+			m.resetSearch(m.fullText)
+			return m, nil
+		case key.Matches(msg, scopeKey):
+			// Cleared for the same reason as on entering the trash view.
+			m.input.Reset()
+			m.allProjects = !m.allProjects
 			m.resetSearch(m.fullText)
 			return m, nil
 		case m.trash:
