@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -162,7 +163,11 @@ func (s *Session) parse() error {
 	cwdSeen := false
 	for {
 		line, err := r.ReadBytes('\n')
-		if len(line) > 0 {
+		// Once cwd and prompt are known only title records can change the
+		// result, and decoding every multi-KiB line dominated startup.
+		skip := cwdSeen && s.Prompt != "" &&
+			!bytes.Contains(line, []byte("custom-title")) && !bytes.Contains(line, []byte("ai-title"))
+		if len(line) > 0 && !skip {
 			var rec record
 			if json.Unmarshal(line, &rec) == nil {
 				if !cwdSeen && rec.Cwd != nil {

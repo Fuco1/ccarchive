@@ -102,6 +102,33 @@ func TestTitleFallsBackToLastAiTitle(t *testing.T) {
 	}
 }
 
+// The cwd and prompt come first here, so every later line takes the path that
+// decodes only lines naming a title type.
+const cwdUser = `{"type":"user","cwd":"/work","message":{"content":"first prompt"}}`
+
+func TestTitleIsLastCustomTitleAfterCwdAndPrompt(t *testing.T) {
+	s := parseTranscript(t, cwdUser, custom1, ai1, `{"type":"assistant"}`, stringUser, custom2, ai2, `{"type":"summary"}`)
+	if s.Title != "custom two" || s.Cwd != "/work" || s.Prompt != "first prompt" {
+		t.Fatalf("title = %q, cwd = %q, prompt = %q", s.Title, s.Cwd, s.Prompt)
+	}
+}
+
+func TestTitleFallsBackToLastAiTitleAfterCwdAndPrompt(t *testing.T) {
+	s := parseTranscript(t, cwdUser, ai1, `{"type":"assistant"}`, ai2, stringUser)
+	if s.Title != "ai two" {
+		t.Fatalf("title = %q", s.Title)
+	}
+}
+
+// A title record whose type is JSON-escaped decodes as a title, so only the
+// byte check keeps it out: this fails if later lines are decoded.
+func TestLinesNamingNoTitleTypeAreNotDecodedAfterCwdAndPrompt(t *testing.T) {
+	s := parseTranscript(t, cwdUser, `{"type":"custom\u002dtitle","customTitle":"decoded"}`)
+	if s.Title != "first prompt" {
+		t.Fatalf("title = %q", s.Title)
+	}
+}
+
 func TestTitleFallsBackToFirstTypedUserPromptFirstLine(t *testing.T) {
 	s := parseTranscript(t, metaUser, toolUser, arrayUser, stringUser)
 	if s.Title != "fix the build" {
