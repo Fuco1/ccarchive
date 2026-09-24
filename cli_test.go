@@ -112,6 +112,20 @@ func TestLsPrintsTabSeparatedUUIDStateCwdTitleForEachFlag(t *testing.T) {
 	}
 }
 
+func TestLsEscapesTabNewlineAndBackslashSoEachSessionIsOneFourFieldLine(t *testing.T) {
+	f := cliStore(t)
+	write(t, filepath.Join(activeRoot(f.st.cfg), project, hereActive+".jsonl"),
+		`{"type":"custom-title","customTitle":"a\tb\nc\r\\d"}`+"\n"+`{"type":"user","cwd":"`+f.here+`"}`+"\n", time.Now())
+	out, _, err := execute(t, "ls")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := hereActive + "\tactive\t" + f.here + "\t" + `a\tb\nc\r\\d` + "\n"
+	if out != want {
+		t.Errorf("ls = %q, want %q", out, want)
+	}
+}
+
 func TestIdResolvesFullUUIDOrUniquePrefixInAnyStoreAndProject(t *testing.T) {
 	f := cliStore(t)
 	for _, tc := range []struct {

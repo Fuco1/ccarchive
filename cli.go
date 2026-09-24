@@ -114,6 +114,11 @@ func resolve(sessions []Session, id string) (Session, error) {
 	return Session{}, fmt.Errorf("%s matches %d sessions:\n%s", id, len(hits), strings.Join(hits, "\n"))
 }
 
+// A title or cwd is free text from the transcript, so a raw tab or newline in
+// one would split a session's record; the backslash is escaped too so that the
+// escaping reads back unambiguously.
+var lsField = strings.NewReplacer(`\`, `\\`, "\t", `\t`, "\n", `\n`, "\r", `\r`)
+
 func lsCmd() *cobra.Command {
 	var all, archived, trashed bool
 	cmd := &cobra.Command{
@@ -137,7 +142,7 @@ func lsCmd() *cobra.Command {
 				} else if s.Archived {
 					state = "archived"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", s.UUID, state, s.Cwd, s.Title)
+				fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", s.UUID, state, lsField.Replace(s.Cwd), lsField.Replace(s.Title))
 			}
 			return nil
 		},
