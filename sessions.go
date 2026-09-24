@@ -150,52 +150,85 @@ type record struct {
 	} `json:"message"`
 }
 
-// Lines run to hundreds of KiB because attachments are inlined, so this reads
-// with ReadBytes rather than a bufio.Scanner, whose token limit would drop them.
+// tailWindow bounds the read from the end of a transcript. Title records are
+// observed, not documented, to sit near the end: across 200 titled transcripts
+// the last custom-title was never more than 29 KiB from the end and the last
+// ai-title never more than 42 KiB, since Claude Code appears to re-append them
+// as a session goes on. A title record further back than this is missed.
+const tailWindow = 64 << 10
+
+// The start is read in whole lines rather than a fixed window because a first
+// prompt with a pasted attachment runs to hundreds of KiB and a window would
+// cut it; ReadBytes rather than a bufio.Scanner, whose token limit drops them.
 func (s *Session) parse() error {
 	f, err := os.Open(s.Path)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	r := bufio.NewReader(f)
 	var custom, ai string
 	cwdSeen := false
-	for {
-		line, err := r.ReadBytes('\n')
-		// Once cwd and prompt are known only title records can change the
-		// result, and decoding every multi-KiB line dominated startup.
-		skip := cwdSeen && s.Prompt != "" &&
-			!bytes.Contains(line, []byte("custom-title")) && !bytes.Contains(line, []byte("ai-title"))
-		if len(line) > 0 && !skip {
-			var rec record
-			if json.Unmarshal(line, &rec) == nil {
-				if !cwdSeen && rec.Cwd != nil {
-					s.Cwd, cwdSeen = *rec.Cwd, true
-				}
-				switch rec.Type {
-				case "custom-title":
-					if rec.CustomTitle != "" {
-						custom = rec.CustomTitle
-					}
-				case "ai-title":
-					if rec.AiTitle != "" {
-						ai = rec.AiTitle
-					}
-				case "user":
-					if s.Prompt == "" && !rec.IsMeta {
-						s.Prompt = strings.TrimSpace(contentText(rec.Message.Content))
-					}
-				}
+	apply := func(line []byte) {
+		var rec record
+		if json.Unmarshal(line, &rec) != nil {
+			return
+		}
+		if !cwdSeen && rec.Cwd != nil {
+			s.Cwd, cwdSeen = *rec.Cwd, true
+		}
+		switch rec.Type {
+		case "custom-title":
+			if rec.CustomTitle != "" {
+				custom = rec.CustomTitle
+			}
+		case "ai-title":
+			if rec.AiTitle != "" {
+				ai = rec.AiTitle
+			}
+		case "user":
+			if s.Prompt == "" && !rec.IsMeta {
+				s.Prompt = strings.TrimSpace(contentText(rec.Message.Content))
 			}
 		}
+	}
+	r := bufio.NewReader(f)
+	var read int64
+	for !cwdSeen || s.Prompt == "" {
+		line, err := r.ReadBytes('\n')
+		read += int64(len(line))
+		if len(line) > 0 {
+			apply(line)
+		}
 		if errors.Is(err, io.EOF) {
-			break
+			s.setTitle(custom, ai)
+			return nil
 		}
 		if err != nil {
 			return err
 		}
 	}
+	info, err := f.Stat()
+	if err != nil {
+		return err
+	}
+	// A line cut at the window's first byte fails to decode and is dropped.
+	from := max(read, info.Size()-tailWindow)
+	tail, err := io.ReadAll(io.NewSectionReader(f, from, info.Size()-from))
+	if err != nil {
+		return err
+	}
+	for _, line := range bytes.Split(tail, []byte("\n")) {
+		// Only title records can change the result now, and decoding every
+		// multi-KiB line dominated startup.
+		if bytes.Contains(line, []byte("custom-title")) || bytes.Contains(line, []byte("ai-title")) {
+			apply(line)
+		}
+	}
+	s.setTitle(custom, ai)
+	return nil
+}
+
+func (s *Session) setTitle(custom, ai string) {
 	s.Title = s.UUID
 	for _, t := range []string{custom, ai, firstLine(s.Prompt)} {
 		if t != "" {
@@ -203,7 +236,6 @@ func (s *Session) parse() error {
 			break
 		}
 	}
-	return nil
 }
 
 func contentText(raw json.RawMessage) string {

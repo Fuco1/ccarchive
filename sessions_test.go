@@ -196,3 +196,15 @@ func TestPromptHoldsEveryTextBlockOfTheFirstUserMessage(t *testing.T) {
 		t.Fatalf("title %q, prompt %q", s.Title, s.Prompt)
 	}
 }
+
+func TestTitleRecordBeforeTheLast64KiBIsNotRead(t *testing.T) {
+	filler := `{"type":"assistant","message":{"content":"` + strings.Repeat("x", 1<<10) + `"}}`
+	lines := []string{cwdUser, custom1}
+	for range 70 {
+		lines = append(lines, filler)
+	}
+	s := parseTranscript(t, append(lines, ai1)...)
+	if s.Title != "ai one" {
+		t.Errorf("title = %q, want the ai-title in the last 64 KiB and not the earlier custom title", s.Title)
+	}
+}
