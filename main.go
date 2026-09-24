@@ -31,7 +31,11 @@ func run() error {
 	// A failed purge is shown rather than fatal: the trash would otherwise
 	// lock the operator out of every other session.
 	sessions, purgeErr := purgeExpired(sessions, config, data, time.Now())
-	m := newModel(config, data, sessions)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	m := newModel(config, data, cwd, sessions)
 	m.err = purgeErr
 	final, err := tea.NewProgram(m, tea.WithAltScreen()).Run()
 	if err != nil {

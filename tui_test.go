@@ -13,9 +13,17 @@ import (
 
 var sizeMsg = tea.WindowSizeMsg{Width: 200, Height: 40}
 
+// sized starts in the all-projects scope, so tests that are not about the
+// scope need not give their sessions the working directory's cwd.
 func sized(sessions ...Session) model {
-	m, _ := newModel("", "", sessions).Update(sizeMsg)
-	return m.(model)
+	return allProjects(newModel("", "", "", sessions))
+}
+
+func allProjects(m model) model {
+	m.allProjects = true
+	m.refresh()
+	next, _ := m.Update(sizeMsg)
+	return next.(model)
 }
 
 func press(t *testing.T, m model, k string) (model, tea.Cmd) {
@@ -128,7 +136,7 @@ func TestHelpViewListsEveryBoundKey(t *testing.T) {
 		}
 	}
 	for _, re := range []string{`\ba\s+archive/unarchive`, `\btab\s+active/all`, `(^|\s)/\s+search`, `\bctrl\+f\s+in search, toggle full-text`,
-		`\bd\s+move to trash`, `\bT\s+trash view`, `\bu\s+in trash, restore`, `\bX\s+in trash, purge now`} {
+		`\bp\s+this directory/all projects`, `\bd\s+move to trash`, `\bT\s+trash view`, `\bu\s+in trash, restore`, `\bX\s+in trash, purge now`} {
 		if !regexp.MustCompile(re).MatchString(view) {
 			t.Errorf("help view lacks %s:\n%s", re, view)
 		}
@@ -148,12 +156,67 @@ func TestRowShowsTitleCwdAndAge(t *testing.T) {
 // The list's defaults also page on b, u, f and d without listing them in help.
 func TestUnlistedDefaultPageKeysAreUnbound(t *testing.T) {
 	// d trashes the selected session, so the stores are real directories.
-	sized, _ := newModel(t.TempDir(), t.TempDir(), make([]Session, 50)).Update(sizeMsg)
-	m, _ := press(t, sized.(model), "l")
+	m, _ := press(t, allProjects(newModel(t.TempDir(), t.TempDir(), "", make([]Session, 50))), "l")
 	for _, k := range []string{"b", "u", "f", "d"} {
 		m, _ = press(t, m, k)
 		if got := m.list.Paginator.Page; got != 1 {
 			t.Fatalf("after %s page = %d, want 1", k, got)
 		}
+	}
+}
+
+func TestDefaultScopeListsOnlySessionsWhoseCleanedCwdEqualsTheWorkingDirectory(t *testing.T) {
+	m := newModel("", "", "/work/dir/", []Session{
+		{UUID: uuidA, Cwd: "/work/dir"},
+		{UUID: uuidB, Cwd: "/work/./dir/"},
+		{UUID: uuidC, Cwd: "/work/dir/sub"},
+		{UUID: "no-cwd"},
+		{UUID: "parent", Cwd: "/work"},
+	})
+	wantRows(t, m, uuidA, uuidB)
+	if !strings.Contains(m.list.Title, "/work/dir") {
+		t.Fatalf("title %q does not name the directory", m.list.Title)
+	}
+	m, _ = press(t, m, "p")
+	wantRows(t, m, uuidA, uuidB, uuidC, "no-cwd", "parent")
+	if !strings.Contains(m.list.Title, "all projects") {
+		t.Fatalf("title %q does not say all projects", m.list.Title)
+	}
+	m, _ = press(t, m, "p")
+	wantRows(t, m, uuidA, uuidB)
+}
+
+func TestScopeAppliesToAllAndTrashViews(t *testing.T) {
+	m := newModel("", "", "/here", []Session{
+		{UUID: uuidA, Cwd: "/here"},
+		{UUID: uuidB, Cwd: "/here", Archived: true},
+		{UUID: uuidC, Cwd: "/here", Trashed: true},
+		{UUID: "far", Cwd: "/there"},
+		{UUID: "far-archived", Cwd: "/there", Archived: true},
+		{UUID: "far-trashed", Cwd: "/there", Trashed: true},
+	})
+	m, _ = press(t, m, "tab")
+	wantRows(t, m, uuidA, uuidB)
+	m, _ = press(t, m, "T")
+	wantRows(t, m, uuidC)
+	if !strings.Contains(m.list.Title, "Trash") || !strings.Contains(m.list.Title, "/here") {
+		t.Fatalf("trash title %q names neither view and scope", m.list.Title)
+	}
+	m, _ = press(t, m, "p")
+	wantRows(t, m, uuidC, "far-trashed")
+	m, _ = press(t, m, "esc")
+	wantRows(t, m, uuidA, uuidB, "far", "far-archived")
+}
+
+func TestFullTextSearchesOnlyTranscriptsInScope(t *testing.T) {
+	s := transcripts(t, needle+"\n", needle+"\n")
+	s[1].Cwd = "/elsewhere"
+	m := withScan(newModel("", "", s[0].Cwd, s))
+	m, _ = press(t, m, "/")
+	m, _ = press(t, m, "ctrl+f")
+	m, _ = press(t, m, needle)
+	_, cmd := press(t, m, "enter")
+	if got := cmd().(fullTextMsg).paths; len(got) != 1 || got[0] != s[0].Path {
+		t.Fatalf("searched %v, want only %s", got, s[0].Path)
 	}
 }

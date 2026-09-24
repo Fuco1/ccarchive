@@ -37,8 +37,7 @@ func (st store) model(t *testing.T) model {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, _ := newModel(st.cfg, st.data, sessions).Update(sizeMsg)
-	return m.(model)
+	return allProjects(newModel(st.cfg, st.data, "", sessions))
 }
 
 type snapshot struct {
