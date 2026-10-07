@@ -223,8 +223,8 @@ func TestFullTextSearchesOnlyTranscriptsInScope(t *testing.T) {
 	m, _ = press(t, m, "ctrl+f")
 	m, _ = press(t, m, needle)
 	_, cmd := press(t, m, "enter")
-	if got := cmd().(fullTextMsg).paths; len(got) != 1 || got[0] != s[0].Path {
-		t.Fatalf("searched %v, want only %s", got, s[0].Path)
+	if got := cmd().(fullTextMsg).uuids; len(got) != 1 || got[0] != uuidA {
+		t.Fatalf("matched %v, want only %s", got, uuidA)
 	}
 }
 

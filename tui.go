@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -197,22 +198,35 @@ func (m *model) resetSearch(fullText bool) {
 
 type fullTextMsg struct {
 	seq   int
-	paths []string
+	uuids []string
 	err   error
 }
 
+// Results become UUIDs because archiving a session changes its Path, and the
+// lookup is taken here so that a session moved during the run still matches.
 func (m model) runFullText() tea.Cmd {
 	seq, rg, q := m.seq, m.rg, m.input.Value()
 	var paths []string
+	uuid := map[string]string{}
 	for _, s := range m.viewSessions() {
 		paths = append(paths, s.Path)
+		uuid[s.Path] = s.UUID
 	}
 	return func() tea.Msg {
 		r := fullTextMsg{seq: seq}
+		var found []string
 		if rg != "" {
-			r.paths, r.err = rgSearch(rg, q, paths)
+			found, r.err = rgSearch(rg, q, paths)
 		} else {
-			r.paths, r.err = scanSearch(q, paths)
+			found, r.err = scanSearch(q, paths)
+		}
+		for _, p := range found {
+			u, ok := uuid[p]
+			if !ok {
+				r.err = errors.Join(r.err, fmt.Errorf("search reported %s, which it was not given", p))
+				continue
+			}
+			r.uuids = append(r.uuids, u)
 		}
 		return r
 	}
@@ -260,8 +274,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.matches = map[string]bool{}
-		for _, p := range msg.paths {
-			m.matches[strings.TrimSuffix(filepath.Base(p), ".jsonl")] = true
+		for _, u := range msg.uuids {
+			m.matches[u] = true
 		}
 		m.err = msg.err
 		m.refresh()

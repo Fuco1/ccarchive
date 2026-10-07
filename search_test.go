@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -154,6 +156,49 @@ func TestFullTextRgFindsSessionByTranscriptBody(t *testing.T) {
 	wantRows(t, m, uuidA)
 	if m.err != nil {
 		t.Fatal(m.err)
+	}
+}
+
+func TestFullTextMatchesBySessionPathNotFileName(t *testing.T) {
+	s := transcripts(t, needle+"\n")
+	p := filepath.Join(filepath.Dir(s[0].Path), "not-its-uuid")
+	if err := os.Rename(s[0].Path, p); err != nil {
+		t.Fatal(err)
+	}
+	s[0].Path = p
+	wantRows(t, fullText(t, withScan(sized(s...)), needle), uuidA)
+}
+
+func TestFullTextMatchesASessionArchivedDuringTheRun(t *testing.T) {
+	s := transcripts(t, needle+"\n")
+	m := withScan(sized(s...))
+	m.showAll = true
+	m, _ = press(t, m, "/")
+	m, _ = press(t, m, "ctrl+f")
+	m, _ = press(t, m, needle)
+	m, cmd := press(t, m, "enter")
+	moved := s[0]
+	moved.Path, moved.Archived = filepath.Join(t.TempDir(), "archived"), true
+	m.record(s[0], moved, nil)
+	next, _ := m.Update(cmd())
+	wantRows(t, next.(model), uuidA)
+}
+
+func TestFullTextReportsAPathItWasNotGiven(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the stand-in rg is a shell script")
+	}
+	rg := filepath.Join(t.TempDir(), "rg")
+	write(t, rg, "#!/bin/sh\necho /not/searched\n", time.Now())
+	if err := os.Chmod(rg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	m := sized(transcripts(t, needle+"\n")...)
+	m.rg = rg
+	m = fullText(t, m, needle)
+	wantRows(t, m)
+	if m.err == nil || !strings.Contains(m.err.Error(), "/not/searched") {
+		t.Fatalf("err = %v, want one naming /not/searched", m.err)
 	}
 }
 
