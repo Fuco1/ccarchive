@@ -30,7 +30,7 @@ type Session struct {
 }
 
 // A project directory also holds files like <uuid>.orphaned-<n>-<hex>.jsonl;
-// later milestones move whatever is listed, so only canonical names count.
+// archive and trash move whatever is listed, so only canonical names count.
 const uuidPattern = `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
 
 var (
@@ -39,7 +39,7 @@ var (
 )
 
 func configDir() (string, error) {
-	// The spec's rule is "when set", and set-but-empty is set.
+	// Claude's config dir is $CLAUDE_CONFIG_DIR "when set", and set-but-empty is set.
 	if d, ok := os.LookupEnv("CLAUDE_CONFIG_DIR"); ok {
 		return d, nil
 	}

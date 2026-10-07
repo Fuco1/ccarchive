@@ -66,7 +66,7 @@ var (
 )
 
 // keyMap replaces the list's defaults, whose help omits keys they bind (b, u,
-// f, d page; esc quits) and which later milestones bind to other actions.
+// f, d page; esc quits) and whose d and u ccarchive binds to trash and restore.
 func keyMap() list.KeyMap {
 	km := list.DefaultKeyMap()
 	km.PrevPage = key.NewBinding(key.WithKeys("left", "h", "pgup"), key.WithHelp("←/h/pgup", "prev page"))

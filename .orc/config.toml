@@ -33,7 +33,7 @@ merge   = ["test"]
 # front of every review here, which is a deliberate act.
 [review]
 criteria = [
-  "Every comment the change adds says why and not what: a constraint from outside the file, an alternative that fails, or a pointer to where the reasoning lives, in five lines or fewer.",
+  "Every comment the change adds says why and not what: a constraint from outside the file, an alternative that fails, or a pointer to where the reasoning lives, in five lines or fewer. A pointer names a file or identifier in this repo, never an orc node, a spec or a milestone.",
   "Nothing the change writes describes what used to be true. A deleted rule is deleted, not annotated.",
   "Things that change together are declared together: a value and its default, a parser and what it parses, a rule and its check live in one place, and the change spreads none of them across two.",
   "The change adds no helper, type or pattern the repo already has one of.",
