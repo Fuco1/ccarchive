@@ -33,8 +33,10 @@ type Session struct {
 // archive and trash move whatever is listed, so only canonical names count.
 const uuidPattern = `[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}`
 
+const transcriptSuffix = ".jsonl"
+
 var (
-	sessionName   = regexp.MustCompile(`^` + uuidPattern + `\.jsonl$`)
+	sessionName   = regexp.MustCompile(`^` + uuidPattern + regexp.QuoteMeta(transcriptSuffix) + `$`)
 	canonicalUUID = regexp.MustCompile(`^` + uuidPattern + `$`)
 )
 
@@ -124,7 +126,7 @@ func scanSessions(projects string, archived bool) ([]Session, error) {
 				return nil, err
 			}
 			s := Session{
-				UUID:     strings.TrimSuffix(f.Name(), ".jsonl"),
+				UUID:     strings.TrimSuffix(f.Name(), transcriptSuffix),
 				Project:  d.Name(),
 				Path:     filepath.Join(projects, d.Name(), f.Name()),
 				ModTime:  info.ModTime(),

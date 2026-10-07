@@ -111,7 +111,7 @@ func purge(s Session, config, data string) error {
 		filepath.Join(config, "file-history", s.UUID),
 		filepath.Join(config, "session-env", s.UUID),
 		filepath.Join(dir, s.UUID),
-		filepath.Join(dir, s.UUID+".jsonl"),
+		filepath.Join(dir, s.UUID+transcriptSuffix),
 		sidecarPath(dir, s.UUID),
 	} {
 		if err := os.RemoveAll(p); err != nil {
