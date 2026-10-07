@@ -37,7 +37,7 @@ func moveSession(s Session, fromRoot, toRoot, config string) (Session, error) {
 	} else if live {
 		return s, fmt.Errorf("session %s is running; quit it first", s.UUID)
 	}
-	names := []string{s.UUID + ".jsonl"}
+	names := []string{s.UUID + transcriptSuffix}
 	if _, err := os.Lstat(filepath.Join(from, s.UUID)); err == nil {
 		names = append(names, s.UUID)
 	} else if !errors.Is(err, fs.ErrNotExist) {
