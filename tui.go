@@ -38,6 +38,8 @@ func (i item) Title() string {
 }
 
 func age(d time.Duration) string {
+	// A transcript copied from a machine whose clock runs ahead has a future mtime.
+	d = max(d, 0)
 	switch {
 	case d < time.Minute:
 		return fmt.Sprintf("%ds ago", int(d.Seconds()))
